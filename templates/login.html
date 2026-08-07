@@ -12,9 +12,15 @@
 <body class="bg-black">
     <div class="login-page relative">
         <!-- Background Image/Video Placeholder -->
-        <div class="absolute inset-0 z-0">
+        <div class="absolute inset-0 z-0 overflow-hidden">
+            <div
+                class="absolute top-[20%] left-[20%] w-[350px] html-glow h-[350px] bg-purple-600/15 blur-[120px] rounded-full pointer-events-none">
+            </div>
+            <div
+                class="absolute bottom-[20%] right-[20%] w-[400px] html-glow h-[400px] bg-cyan-500/15 blur-[120px] rounded-full pointer-events-none">
+            </div>
             <img src="https://images.unsplash.com/photo-1541339907198-e08756ebafe3?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80"
-                class="w-full h-full object-cover opacity-40">
+                class="w-full h-full object-cover opacity-20">
         </div>
 
         <div class="login-card relative z-10">
@@ -81,13 +87,13 @@
             <div class="mt-8">
                 <p class="text-[10px] uppercase text-gray-500 font-bold mb-4 tracking-widest">Select Role</p>
                 <div class="flex gap-4">
-                    <div
-                        class="flex-1 p-3 border border-white/10 rounded-xl bg-white/5 cursor-pointer hover:bg-white/10 transition">
-                        <span class="text-sm">🎓 Student</span>
+                    <div onclick="document.querySelector('[name=username]').value='FACULTY01'; document.querySelector('[name=password]').value='faculty123';"
+                        class="flex-1 p-3 border border-white/10 rounded-2xl bg-white/5 cursor-pointer hover:bg-purple-500/10 hover:border-purple-500/30 transition-all duration-300">
+                        <span class="text-sm font-bold text-white/90">👔 Faculty</span>
                     </div>
-                    <div
-                        class="flex-1 p-3 border border-white/10 rounded-xl bg-white/5 cursor-pointer hover:bg-white/10 transition">
-                        <span class="text-sm">👔 Faculty</span>
+                    <div onclick="document.querySelector('[name=username]').value='211801001'; document.querySelector('[name=password]').value='student123';"
+                        class="flex-1 p-3 border border-white/10 rounded-2xl bg-white/5 cursor-pointer hover:bg-cyan-500/10 hover:border-cyan-500/30 transition-all duration-300">
+                        <span class="text-sm font-bold text-white/90">🎓 Student</span>
                     </div>
                 </div>
             </div>
