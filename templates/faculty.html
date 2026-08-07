@@ -12,9 +12,14 @@
 </head>
 
 <body class="bg-[#0a0c10]">
+    <!-- Hamburger Menu Button -->
+    <button class="mobile-menu-btn" id="mobile-menu-btn" onclick="toggleMobileSidebar()">☰</button>
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
     <div class="app-container">
         <!-- Sidebar -->
-        <aside class="sidebar icon-sidebar flex flex-col items-center">
+        <aside class="sidebar icon-sidebar flex flex-col items-center" id="sidebar">
             <div class="p-4 bg-white/5 rounded-xl border border-white/10 mb-8">
                 <img src="/static/images/logo.png" class="w-8 h-8 object-contain" alt="Logo">
             </div>
@@ -449,8 +454,30 @@
             lucide.createIcons();
         }
     </script>
-</body>
 
-</html>
+    <script>
+        // Mobile sidebar toggle
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('mobile-open');
+            overlay.classList.toggle('active');
+        }
+
+        // Close sidebar when a nav link is clicked (mobile)
+        document.querySelectorAll('nav a').forEach(item => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    const sidebar = document.getElementById('sidebar');
+                    const overlay = document.getElementById('sidebar-overlay');
+                    if (sidebar.classList.contains('mobile-open')) {
+                        sidebar.classList.remove('mobile-open');
+                        overlay.classList.remove('active');
+                    }
+                }
+            });
+        });
+    </script>
+</body>
 
 </html>

@@ -11,9 +11,27 @@
 </head>
 
 <body class="bg-[#0a0c10]">
+    <!-- Hamburger Menu Button -->
+    <button class="mobile-menu-btn" id="mobile-menu-btn" onclick="toggleMobileSidebar()">☰</button>
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <!-- Custom Add Slot Modal -->
+    <div class="slot-modal-overlay" id="slot-modal-overlay">
+        <div class="slot-modal">
+            <h3>Add New Slot</h3>
+            <p>Enter the slot name (e.g. Slot C)</p>
+            <input type="text" id="slot-modal-input" placeholder="Slot Name..." autocomplete="off">
+            <div class="slot-modal-actions">
+                <button class="slot-modal-cancel" onclick="closeSlotModal()">Cancel</button>
+                <button class="slot-modal-confirm" onclick="confirmAddSlot()">Add Slot</button>
+            </div>
+        </div>
+    </div>
+
     <div class="app-container">
         <!-- Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="flex items-center space-x-2 mb-12">
                 <div class="p-2 bg-white/5 rounded-lg border border-white/10">
                     <img src="/static/images/logo.png" class="w-6 h-6 object-contain" alt="Logo">
@@ -303,15 +321,34 @@
         }
 
         function addSlot() {
-            const name = prompt("Enter Slot Name (e.g. Slot C):");
-            if (name) {
-                if (!slots.includes(name)) {
-                    slots.push(name);
-                    updateSlotList();
-                    renderDynamicFields();
-                } else {
-                    alert("Slot already exists!");
-                }
+            const overlay = document.getElementById('slot-modal-overlay');
+            const input = document.getElementById('slot-modal-input');
+            input.value = '';
+            overlay.classList.add('active');
+            setTimeout(() => input.focus(), 100);
+        }
+
+        function closeSlotModal() {
+            document.getElementById('slot-modal-overlay').classList.remove('active');
+        }
+
+        function confirmAddSlot() {
+            const input = document.getElementById('slot-modal-input');
+            const name = input.value.trim();
+            if (!name) return;
+            if (!slots.includes(name)) {
+                slots.push(name);
+                updateSlotList();
+                renderDynamicFields();
+                closeSlotModal();
+            } else {
+                input.style.borderColor = '#ef4444';
+                input.setAttribute('placeholder', 'Slot already exists!');
+                input.value = '';
+                setTimeout(() => {
+                    input.style.borderColor = '';
+                    input.setAttribute('placeholder', 'Slot Name...');
+                }, 2000);
             }
         }
 
@@ -349,6 +386,29 @@
         }
 
         document.addEventListener('DOMContentLoaded', renderDynamicFields);
+
+        // Mobile sidebar toggle
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('mobile-open');
+            overlay.classList.toggle('active');
+        }
+
+        // Close sidebar when a menu item is clicked (mobile)
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    toggleMobileSidebar();
+                }
+            });
+        });
+
+        // Enter key support for slot modal
+        document.getElementById('slot-modal-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') confirmAddSlot();
+            if (e.key === 'Escape') closeSlotModal();
+        });
     </script>
 </body>
 
