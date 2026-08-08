@@ -39,6 +39,8 @@ class StudentDetail(db.Model):
     reg_num = db.Column(db.String(50), primary_key=True)
     name = db.Column(db.String(100))
     course = db.Column(db.String(100))
+    mentor_username = db.Column(db.String(50), db.ForeignKey('user.username'))
+
     # JSON strings for dynamic data
     slot_info = db.Column(db.Text, default='[]') # List of slot names
     attendance_data = db.Column(db.Text, default='{}') # {"Slot A": 81}
@@ -82,45 +84,23 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 def seed_db():
-    # Faculty: Ashwin@123
-    if not User.query.get('Ashwin@123'):
+    # Faculty: mentor1@123
+    if not User.query.get('mentor1@123'):
         db.session.add(User(
-            username='Ashwin@123',
+            username='mentor1@123',
             password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
             role='faculty'
         ))
 
-    # Faculty: admin@123
-    if not User.query.get('admin@123'):
+    # Faculty: mentor2@123
+    if not User.query.get('mentor2@123'):
         db.session.add(User(
-            username='admin@123',
+            username='mentor2@123',
             password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
             role='faculty'
         ))
 
-    # Demo student: 24REG01
-    if not User.query.get('24REG01'):
-        db.session.add(User(
-            username='24REG01',
-            password_hash=bcrypt.generate_password_hash('student123').decode('utf-8'),
-            role='student'
-        ))
-        db.session.add(StudentDetail(
-            reg_num='24REG01',
-            name='Ibrahim',
-            course='CSA0708 - Computer Networks',
-            slot_info=json.dumps(['Slot A', 'Slot B']),
-            attendance_data=json.dumps({'Slot A': 81, 'Slot B': 98}),
-            marks_data=json.dumps({'Slot A': {'model': '20', 'test1': '20', 'avg': '15'}})
-        ))
 
-    # Demo student: Ibrahim@123
-    if not User.query.get('Ibrahim@123'):
-        db.session.add(User(
-            username='Ibrahim@123',
-            password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
-            role='student'
-        ))
 
     db.session.commit()
 
@@ -261,7 +241,7 @@ def add_student():
             password_hash=bcrypt.generate_password_hash(password).decode('utf-8'),
             role='student'
         )
-        new_detail = StudentDetail(reg_num=reg_num, name=name)
+        new_detail = StudentDetail(reg_num=reg_num, name=name, mentor_username=session['user'])
         db.session.add(new_user)
         db.session.add(new_detail)
         db.session.commit()
@@ -295,7 +275,7 @@ def faculty_dashboard():
     if 'user' not in session or session['role'] != 'faculty':
         return redirect(url_for('login'))
     
-    students = StudentDetail.query.all()
+    students = StudentDetail.query.filter_by(mentor_username=session['user']).all()
     # Simplified stats for global update
     total_att_a = 0
     count_a = 0
@@ -336,14 +316,14 @@ def generate_report():
     if 'user' not in session or session['role'] != 'faculty':
         return redirect(url_for('login'))
     
-    students = StudentDetail.query.all()
+    students = StudentDetail.query.filter_by(mentor_username=session['user']).all()
     prs = Presentation()
     
     for student in students:
         slots = student.get_slots()
         att_data = student.get_attendance()
         marks_data = student.get_marks()
-        mentor_name = "Mr. V. Ashwin"
+        mentor_name = session['user']
         
         # --- SLIDE 1: ACADEMIC PERFORMANCE ---
         slide_layout = prs.slide_layouts[6] # Blank
@@ -597,7 +577,7 @@ def delete_all_reports():
         return redirect(url_for('login'))
     
     # Only clear PPT/report fields — keep student accounts and rows intact
-    students = StudentDetail.query.all()
+    students = StudentDetail.query.filter_by(mentor_username=session['user']).all()
     for student in students:
         delete_photo(student.photo_path)
         student.slot_info = '[]'
