@@ -22,6 +22,7 @@
             <h3>Add New Slot</h3>
             <p>Enter the slot name (e.g. Slot C)</p>
             <input type="text" id="slot-modal-input" placeholder="Slot Name..." autocomplete="off">
+            <div id="slot-modal-error" class="hidden text-red-500 text-xs font-bold mt-2">⚠ Slot already exists!</div>
             <div class="slot-modal-actions">
                 <button class="slot-modal-cancel" onclick="closeSlotModal()">Cancel</button>
                 <button class="slot-modal-confirm" onclick="confirmAddSlot()">Add Slot</button>
@@ -155,6 +156,9 @@
                         <div id="dynamic-inputs-container" class="space-y-12">
                             <!-- JS will populate attendance and marks here based on slots -->
                         </div>
+                        <div class="mt-10 flex justify-end">
+                            <button type="submit" class="btn-primary px-10">Save Academic Data</button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -277,7 +281,7 @@
             container.innerHTML = '';
 
             slots.forEach(slot => {
-                const sMarks = marksData[slot] || { model: '', test1: '', test2: '', avg: '' };
+                const sMarks = marksData[slot] || { total_marks: '', model: '', test1: '', test2: '', avg: '' };
                 const sAtt = attData[slot] || 0;
 
                 const section = document.createElement('div');
@@ -295,7 +299,11 @@
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold text-gray-500 uppercase mb-4">Marks</label>
-                            <div class="grid grid-cols-4 gap-2">
+                            <div class="grid grid-cols-5 gap-2">
+                                <div class="bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
+                                    <p class="text-[8px] text-blue-400 uppercase mb-1">Total Marks</p>
+                                    <input type="text" name="total_marks_${slot}" value="${sMarks.total_marks || ''}" class="w-full bg-transparent font-bold text-sm text-blue-400 focus:outline-none">
+                                </div>
                                 <div class="bg-black/40 p-3 rounded-lg border border-white/5">
                                     <p class="text-[8px] text-gray-400 uppercase mb-1">Model</p>
                                     <input type="text" name="model_${slot}" value="${sMarks.model || ''}" class="w-full bg-transparent font-bold text-sm text-white focus:outline-none">
@@ -330,25 +338,26 @@
 
         function closeSlotModal() {
             document.getElementById('slot-modal-overlay').classList.remove('active');
+            document.getElementById('slot-modal-error').classList.add('hidden');
         }
 
         function confirmAddSlot() {
             const input = document.getElementById('slot-modal-input');
+            const errorMsg = document.getElementById('slot-modal-error');
             const name = input.value.trim();
             if (!name) return;
+
+            const currentInputs = document.querySelectorAll('input[name="slot_names[]"]');
+            slots = Array.from(currentInputs).map(i => i.value.trim());
+
             if (!slots.includes(name)) {
                 slots.push(name);
                 updateSlotList();
                 renderDynamicFields();
                 closeSlotModal();
+                errorMsg.classList.add('hidden');
             } else {
-                input.style.borderColor = '#ef4444';
-                input.setAttribute('placeholder', 'Slot already exists!');
-                input.value = '';
-                setTimeout(() => {
-                    input.style.borderColor = '';
-                    input.setAttribute('placeholder', 'Slot Name...');
-                }, 2000);
+                errorMsg.classList.remove('hidden');
             }
         }
 
