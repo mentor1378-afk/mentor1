@@ -18,12 +18,14 @@
 
     <!-- Custom Add Slot Modal -->
     <div class="slot-modal-overlay" id="slot-modal-overlay">
-        <div class="slot-modal">
-            <h3>Add New Slot</h3>
-            <p>Enter the slot name (e.g. Slot C)</p>
-            <input type="text" id="slot-modal-input" placeholder="Slot Name..." autocomplete="off">
+        <div class="slot-modal align-middle">
+            <h3 class="mb-4">Add New Slot</h3>
+            <p class="mb-2">Enter the slot name (e.g. Slot C)</p>
+            <input type="text" id="slot-modal-input" placeholder="Slot Name..." autocomplete="off" class="mb-4">
+            <p class="mb-2">Enter the course name (e.g. operating system CSA 0408)</p>
+            <input type="text" id="slot-modal-course-input" placeholder="Course Name..." autocomplete="off">
             <div id="slot-modal-error" class="hidden text-red-500 text-xs font-bold mt-2">⚠ Slot already exists!</div>
-            <div class="slot-modal-actions">
+            <div class="slot-modal-actions mt-4">
                 <button class="slot-modal-cancel" onclick="closeSlotModal()">Cancel</button>
                 <button class="slot-modal-confirm" onclick="confirmAddSlot()">Add Slot</button>
             </div>
@@ -281,7 +283,7 @@
             container.innerHTML = '';
 
             slots.forEach(slot => {
-                const sMarks = marksData[slot] || { total_marks: '', model: '', test1: '', test2: '', avg: '' };
+                const sMarks = marksData[slot] || { total_marks: '', model: '', test1: '', test2: '', avg: '', course: '' };
                 const sAtt = attData[slot] || 0;
 
                 const section = document.createElement('div');
@@ -298,7 +300,13 @@
                             </div>
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-4">Marks</label>
+                            <div class="flex justify-between items-center mb-4">
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase">Marks</label>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-[10px] text-gray-400 uppercase">Course:</span>
+                                    <input type="text" name="course_${slot}" value="${sMarks.course || ''}" class="bg-[#0d1117] text-xs font-bold text-white px-2 py-1 rounded border border-white/10 focus:outline-none w-48">
+                                </div>
+                            </div>
                             <div class="grid grid-cols-5 gap-2">
                                 <div class="bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
                                     <p class="text-[8px] text-blue-400 uppercase mb-1">Total Marks</p>
@@ -331,7 +339,9 @@
         function addSlot() {
             const overlay = document.getElementById('slot-modal-overlay');
             const input = document.getElementById('slot-modal-input');
+            const courseInput = document.getElementById('slot-modal-course-input');
             input.value = '';
+            if (courseInput) courseInput.value = '';
             overlay.classList.add('active');
             setTimeout(() => input.focus(), 100);
         }
@@ -343,8 +353,10 @@
 
         function confirmAddSlot() {
             const input = document.getElementById('slot-modal-input');
+            const courseInput = document.getElementById('slot-modal-course-input');
             const errorMsg = document.getElementById('slot-modal-error');
             const name = input.value.trim();
+            const courseName = courseInput.value.trim();
             if (!name) return;
 
             const currentInputs = document.querySelectorAll('input[name="slot_names[]"]');
@@ -352,6 +364,9 @@
 
             if (!slots.includes(name)) {
                 slots.push(name);
+                if (!marksData[name]) marksData[name] = {};
+                marksData[name].course = courseName;
+
                 updateSlotList();
                 renderDynamicFields();
                 closeSlotModal();

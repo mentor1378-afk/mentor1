@@ -49,12 +49,21 @@ def add_highlight(run, color_hex):
     if not inserted:
         rPr.append(highlight)
 
+MENTOR_NAMES = {
+    'mentor1@123': 'vijayavaran',
+    'mentor2@123': 'Mr. Mentor 2'
+}
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'cinematic_secret_key_123'
 uri = os.environ.get("DATABASE_URL", "sqlite:///database.db")
 if uri.startswith("postgres://"):
     uri = uri.replace("postgres://", "postgresql://", 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300
+}
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -223,7 +232,8 @@ def student_dashboard():
                 'model': request.form.get(f'model_{slot}', current_marks.get(slot, {}).get('model', '-')),
                 'test1': request.form.get(f'test1_{slot}', current_marks.get(slot, {}).get('test1', '-')),
                 'test2': request.form.get(f'test2_{slot}', current_marks.get(slot, {}).get('test2', '-')),
-                'avg': request.form.get(f'avg_{slot}', current_marks.get(slot, {}).get('avg', '-'))
+                'avg': request.form.get(f'avg_{slot}', current_marks.get(slot, {}).get('avg', '-')),
+                'course': request.form.get(f'course_{slot}', current_marks.get(slot, {}).get('course', '-'))
             }
 
         student.attendance_data = json.dumps(att_data)
@@ -343,7 +353,8 @@ def faculty_dashboard():
         for s in students
     ]
 
-    return render_template('faculty.html', students=students, students_json=students_json, stats=stats)
+    mentor_display = MENTOR_NAMES.get(session['user'], session['user'])
+    return render_template('faculty.html', students=students, students_json=students_json, stats=stats, mentor_name=mentor_display)
 
 @app.route('/generate_report')
 def generate_report():
@@ -359,7 +370,7 @@ def generate_report():
         slots = student.get_slots()
         att_data = student.get_attendance()
         marks_data = student.get_marks()
-        mentor_name = session['user']
+        mentor_name = MENTOR_NAMES.get(session['user'], session['user'])
 
         low_attendance_flag = False
         for sl in slots:
@@ -536,23 +547,36 @@ def generate_report():
         run.font.bold = True
         run.font.name = "Times New Roman"
         
-        if low_attendance_flag:
-            warning_msg = f"{student.name or 'The student'} has attendance below 80%. Please maintain the attendance % above 80%."
-            p = tf_body.add_paragraph()
-            run = p.add_run()
-            run.text = warning_msg
-            run.font.size = Pt(18)
-            run.font.bold = True
-            run.font.name = "Times New Roman"
-            add_highlight(run, 'FF0000') # Red highlighting
+        if slots:
+            for slot in slots:
+                att_val = att_data.get(slot, '0') or '0'
+                s_marks = marks_data.get(slot, {}) or {}
+                course_val = s_marks.get('course', 'N/A') or 'N/A'
+                
+                p = tf_body.add_paragraph()
+                run = p.add_run()
+                run.text = f"Attendance for {slot}: {course_val}: {att_val}%"
+                run.font.size = Pt(18)
+                run.font.bold = True
+                run.font.name = "Times New Roman"
+                
+                try:
+                    is_low = float(att_val) < 80
+                except ValueError:
+                    is_low = False
+                    
+                if is_low:
+                    add_highlight(run, 'FF0000') # Red highlighting
+                else:
+                    add_highlight(run, '00FF00') # Green highlighting
         else:
             p = tf_body.add_paragraph()
             run = p.add_run()
-            run.text = f"So far {student.name or 'the student'} has maintained consistent attendance in the course."
+            run.text = "Attendance: N/A"
             run.font.size = Pt(18)
             run.font.bold = True
             run.font.name = "Times New Roman"
-            add_highlight(run, '00FF00') # Green highlighting
+            add_highlight(run, '00FF00')
         
         p = tf_body.add_paragraph()
         p.space_before = Pt(18)
