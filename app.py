@@ -130,11 +130,19 @@ def seed_db():
     if not User.query.get('vijay@123'):
         old_user = User.query.get('mentor1@123')
         if old_user:
-            # First update all students referencing mentor1@123 to avoid FK violation
+            # Step 1: Create vijay@123 first so FK references are valid
+            new_user = User(
+                username='vijay@123',
+                password_hash=old_user.password_hash,
+                role='faculty'
+            )
+            db.session.add(new_user)
+            db.session.flush()  # Write new user to DB before updating FKs
+            # Step 2: Update all students pointing to mentor1@123
             StudentDetail.query.filter_by(mentor_username='mentor1@123').update({'mentor_username': 'vijay@123'})
             db.session.flush()
-            # Now safely rename the user
-            old_user.username = 'vijay@123'
+            # Step 3: Now safely delete old user
+            db.session.delete(old_user)
         else:
             db.session.add(User(
                 username='vijay@123',
