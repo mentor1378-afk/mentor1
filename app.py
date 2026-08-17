@@ -126,11 +126,14 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 def seed_db():
-    # Faculty: vijay@123
+    # Faculty: vijay@123 (migrated from mentor1@123)
     if not User.query.get('vijay@123'):
-        # Migrate old mentor1@123 account if it exists
         old_user = User.query.get('mentor1@123')
         if old_user:
+            # First update all students referencing mentor1@123 to avoid FK violation
+            StudentDetail.query.filter_by(mentor_username='mentor1@123').update({'mentor_username': 'vijay@123'})
+            db.session.flush()
+            # Now safely rename the user
             old_user.username = 'vijay@123'
         else:
             db.session.add(User(
