@@ -598,7 +598,10 @@ def generate_report():
         p = tf_body.add_paragraph()
         p.space_before = Pt(18)
         run = p.add_run()
-        run.text = f"Your ward participated in: {student.event_participation or 'Star Summit'} and gave his very best throughout the journey. His dedication, hard work, and sincere efforts are truly appreciable."
+        if student.event_participation:
+            run.text = f"Your ward participated in: {student.event_participation} and gave his very best throughout the journey. His dedication, hard work, and sincere efforts are truly appreciable."
+        else:
+            run.text = "I have personally advised this student to actively participate in co-curricular and extracurricular events to enhance their overall personality, communication skills, and technical exposure. Regular participation in such events will greatly contribute to their professional development and help them stand out in their academics and career."
         run.font.size = Pt(18)
         run.font.bold = True
         run.font.name = "Times New Roman"
