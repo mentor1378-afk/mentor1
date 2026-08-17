@@ -50,7 +50,7 @@ def add_highlight(run, color_hex):
         rPr.append(highlight)
 
 MENTOR_NAMES = {
-    'mentor1@123': 'vijayavaran',
+    'vijay@123': 'vijayavaran',
     'mentor2@123': 'Mr. Mentor 2'
 }
 
@@ -126,13 +126,18 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 def seed_db():
-    # Faculty: mentor1@123
-    if not User.query.get('mentor1@123'):
-        db.session.add(User(
-            username='mentor1@123',
-            password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
-            role='faculty'
-        ))
+    # Faculty: vijay@123
+    if not User.query.get('vijay@123'):
+        # Migrate old mentor1@123 account if it exists
+        old_user = User.query.get('mentor1@123')
+        if old_user:
+            old_user.username = 'vijay@123'
+        else:
+            db.session.add(User(
+                username='vijay@123',
+                password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
+                role='faculty'
+            ))
 
     # Faculty: mentor2@123
     if not User.query.get('mentor2@123'):
