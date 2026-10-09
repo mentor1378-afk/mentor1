@@ -20,39 +20,17 @@ from pptx.oxml.xmlchemy import OxmlElement
 
 def add_highlight(run, color_hex):
     rPr = run._r.get_or_add_rPr()
-    for hl in rPr.xpath('./a:highlight'):
-        rPr.remove(hl)
-        
     highlight = OxmlElement('a:highlight')
     srgbClr = OxmlElement('a:srgbClr')
     srgbClr.set('val', color_hex)
     highlight.append(srgbClr)
-    
-    tags_after = [
-        '{http://schemas.openxmlformats.org/drawingml/2006/main}uLnTx',
-        '{http://schemas.openxmlformats.org/drawingml/2006/main}latin',
-        '{http://schemas.openxmlformats.org/drawingml/2006/main}ea',
-        '{http://schemas.openxmlformats.org/drawingml/2006/main}cs',
-        '{http://schemas.openxmlformats.org/drawingml/2006/main}sym',
-        '{http://schemas.openxmlformats.org/drawingml/2006/main}hlinkClick',
-        '{http://schemas.openxmlformats.org/drawingml/2006/main}hlinkMouseOver',
-        '{http://schemas.openxmlformats.org/drawingml/2006/main}rtl',
-        '{http://schemas.openxmlformats.org/drawingml/2006/main}extLst',
-    ]
-    
-    inserted = False
-    for child in rPr:
-        if child.tag in tags_after:
-            child.addprevious(highlight)
-            inserted = True
-            break
-            
-    if not inserted:
-        rPr.append(highlight)
+    rPr.append(highlight)
 
 MENTOR_NAMES = {
     'vijay@123': 'Vijayavaran',
-    'mentor2@123': 'Mr. Mentor 2'
+    'mentor2@123': 'Mr. Mentor 2',
+    'Ashwin@123': 'Mr. V. Ashwin',
+    'admin@123': 'Administrator'
 }
 
 app = Flask(__name__)
@@ -62,6 +40,8 @@ if uri.startswith("postgres://"):
     uri = uri.replace("postgres://", "postgresql://", 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 
+# Use QueuePool for better concurrency. NullPool opens a new connection per query,
+# which causes connection exhaustion / 500 errors when many students use the app at once.
 if 'postgresql' in uri or 'postgres' in uri:
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'pool_size': 10,
@@ -97,7 +77,6 @@ class StudentDetail(db.Model):
     name = db.Column(db.String(100))
     course = db.Column(db.String(100))
     mentor_username = db.Column(db.String(50), db.ForeignKey('user.username'))
-
     # JSON strings for dynamic data
     slot_info = db.Column(db.Text, default='[]') # List of slot names
     attendance_data = db.Column(db.Text, default='{}') # {"Slot A": 81}
@@ -156,15 +135,11 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 def seed_db():
-    # Faculty 1: vijay@123 (migrated from mentor1@123 if existing)
+    # Faculty: vijay@123
     if not User.query.get('vijay@123'):
         old_user = User.query.get('mentor1@123')
         if old_user:
-            new_user = User(
-                username='vijay@123',
-                password_hash=old_user.password_hash,
-                role='faculty'
-            )
+            new_user = User(username='vijay@123', password_hash=old_user.password_hash, role='faculty')
             db.session.add(new_user)
             db.session.flush()
             StudentDetail.query.filter_by(mentor_username='mentor1@123').update({'mentor_username': 'vijay@123'})
@@ -177,12 +152,54 @@ def seed_db():
                 role='faculty'
             ))
 
-    # Faculty 2: mentor2@123
+    # Faculty: mentor2@123
     if not User.query.get('mentor2@123'):
         db.session.add(User(
             username='mentor2@123',
             password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
             role='faculty'
+        ))
+
+    # Faculty: Ashwin@123
+    if not User.query.get('Ashwin@123'):
+        db.session.add(User(
+            username='Ashwin@123',
+            password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
+            role='faculty'
+        ))
+
+    # Faculty: admin@123
+    if not User.query.get('admin@123'):
+        db.session.add(User(
+            username='admin@123',
+            password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
+            role='faculty'
+        ))
+
+    # Demo student: 24REG01
+    if not User.query.get('24REG01'):
+        db.session.add(User(
+            username='24REG01',
+            password_hash=bcrypt.generate_password_hash('student123').decode('utf-8'),
+            role='student'
+        ))
+        db.session.add(StudentDetail(
+            reg_num='24REG01',
+            name='Ibrahim',
+            course='CSA0708 - Computer Networks',
+            mentor_username='vijay@123',
+            slot_info=json.dumps(['Slot A', 'Slot B']),
+            attendance_data=json.dumps({'Slot A': 81, 'Slot B': 98}),
+            marks_data=json.dumps({'Slot A': {'model': '20', 'test1': '20', 'avg': '15'}}),
+            last_updated=datetime.now(pytz.timezone('Asia/Kolkata')).replace(tzinfo=None)
+        ))
+
+    # Demo student: Ibrahim@123
+    if not User.query.get('Ibrahim@123'):
+        db.session.add(User(
+            username='Ibrahim@123',
+            password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
+            role='student'
         ))
 
     db.session.commit()
@@ -202,9 +219,6 @@ with app.app_context():
             db.session.commit()
         if 'results_data' not in columns:
             db.session.execute(db.text('ALTER TABLE student_detail ADD COLUMN results_data TEXT DEFAULT \'[]\''))
-            db.session.commit()
-        if 'custom_advisory' not in columns:
-            db.session.execute(db.text('ALTER TABLE student_detail ADD COLUMN custom_advisory TEXT'))
             db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -305,10 +319,10 @@ def student_dashboard():
             student.event_participation = (request.form.get('event_participation') or '').strip()
             student.additional_description = (request.form.get('description') or '').strip()
 
-            # Results data
+            # Results data — save subject/grade entries from My Results tab
             result_subjects = request.form.getlist('result_subject[]')
             result_grades = request.form.getlist('result_grade[]')
-            if result_subjects:
+            if result_subjects:  # Only update if results fields were submitted
                 results = [{'subject': s.strip(), 'grade': g.strip()} for s, g in zip(result_subjects, result_grades) if s and s.strip()]
                 student.results_data = json.dumps(results)
 
@@ -329,6 +343,7 @@ def student_dashboard():
                     except Exception as e:
                         print(f"Local photo upload warning: {e}")
 
+            # Safe Kolkata timestamp calculation
             from datetime import timedelta
             student.last_updated = datetime.utcnow() + timedelta(hours=5, minutes=30)
             
@@ -341,6 +356,7 @@ def student_dashboard():
 
         return redirect(url_for('student_dashboard'))
     
+    # Passing current data as dicts
     try:
         results = json.loads(student.results_data) if student.results_data else []
     except:
@@ -389,7 +405,6 @@ def edit_student_faculty(reg_num):
     
     student = StudentDetail.query.filter_by(reg_num=reg_num, mentor_username=session['user']).first()
     if not student:
-        # Fallback if student has no mentor set yet
         student = StudentDetail.query.get(reg_num)
         if student and not student.mentor_username:
             student.mentor_username = session['user']
@@ -403,6 +418,7 @@ def edit_student_faculty(reg_num):
         student.additional_description = request.form.get('description', student.additional_description or '')
         student.custom_advisory = request.form.get('custom_advisory', student.custom_advisory or '')
 
+        # Save results from faculty edit modal
         result_subjects = request.form.getlist('result_subject[]')
         result_grades = request.form.getlist('result_grade[]')
         results = [{'subject': s.strip(), 'grade': g.strip()} for s, g in zip(result_subjects, result_grades) if s.strip()]
@@ -456,13 +472,14 @@ def faculty_dashboard():
     if 'user' not in session or session['role'] != 'faculty':
         return redirect(url_for('login'))
     
-    # Strictly filter mentees by logged in mentor
+    # Filter students strictly by logged in mentor
     students = StudentDetail.query.filter_by(mentor_username=session['user']).all()
     global_adv = GlobalAdvisory.query.first()
     global_advisory_text = global_adv.content if global_adv else ""
     global_obs = GlobalMentorObservation.query.first()
     global_observation_text = global_obs.content if global_obs else ""
     
+    # Stats filtered per mentor
     total_att_a = 0
     count_a = 0
     for s in students:
@@ -494,7 +511,6 @@ def faculty_dashboard():
             'event_participation': s.event_participation,
             'additional_description': s.additional_description,
             'custom_advisory': s.custom_advisory,
-            'results_data': s.results_data,
             'photo_path': s.photo_path,
             'last_updated': s.last_updated.strftime('%d-%b-%Y %I:%M %p') if s.last_updated else 'N/A',
         }
@@ -543,45 +559,31 @@ def generate_report():
         slide_layout = prs.slide_layouts[6] # Blank
         slide1 = prs.slides.add_slide(slide_layout)
         
-        # Header Box with Logo-like text
-        header_shape = slide1.shapes.add_textbox(Inches(0.2), Inches(0.2), Inches(12.9), Inches(1.2))
-        tf = header_shape.text_frame
-        tf.word_wrap = True
-        p = tf.paragraphs[0]
-        p.text = "SIMATS ENGINEERING"
-        p.font.size = Pt(44)
-        p.font.bold = True
-        p.font.name = "Times New Roman"
-        p.font.color.rgb = RGBColor(0, 0, 0)
-        p.alignment = PP_ALIGN.CENTER
-
         # Banner Table for Name/Reg/Mentor
-        banner_tbl = slide1.shapes.add_table(1, 6, Inches(0.2), Inches(1.4), Inches(12.9), Inches(0.5)).table
+        banner_tbl = slide1.shapes.add_table(1, 6, Inches(0.2), Inches(1.4), Inches(13.0), Inches(0.5)).table
         banner_content = [
-            "Mentee Name:", student.name or 'N/A', 
-            "Reg.NO:", student.reg_num or 'N/A', 
-            "Mentor name:", mentor_name
+            "Mentee Name", student.name or 'N/A',
+            "Reg.NO", student.reg_num or 'N/A',
+            "Mentor name", mentor_name
         ]
-        col_widths = [Inches(1.8), Inches(3.0), Inches(1.3), Inches(2.0), Inches(1.8), Inches(3.0)]
         
         for i, text in enumerate(banner_content):
-            banner_tbl.columns[i].width = col_widths[i]
             cell = banner_tbl.cell(0, i)
             cell.text = text
             cell.fill.solid()
-            cell.fill.fore_color.rgb = RGBColor(240, 240, 240)
+            cell.fill.fore_color.rgb = RGBColor(255, 255, 255)
             p = cell.text_frame.paragraphs[0]
             p.font.size = Pt(14)
             p.font.bold = True
-            p.font.name = "Times New Roman"
+            p.font.name = 'Times New Roman'
             p.font.color.rgb = RGBColor(0, 0, 0)
-            p.alignment = PP_ALIGN.CENTER
+            p.alignment = PP_ALIGN.LEFT if i % 2 == 0 else PP_ALIGN.CENTER
 
         # Student Photo with gray border
         left_img = Inches(0.5)
-        top_img = Inches(2.5)
-        width_img = Inches(3.0)
-        height_img = Inches(3.5)
+        top_img = Inches(2.2)
+        width_img = Inches(2.5)
+        height_img = Inches(3.0)
         
         frame = slide1.shapes.add_shape(MSO_SHAPE.RECTANGLE, left_img - Inches(0.1), top_img - Inches(0.1), width_img + Inches(0.2), height_img + Inches(0.2))
         frame.fill.solid()
@@ -613,82 +615,73 @@ def generate_report():
             p.text = "No Photo"
             p.alignment = PP_ALIGN.CENTER
             p.font.size = Pt(16)
-            p.font.name = "Times New Roman"
             p.font.bold = True
             p.font.color.rgb = RGBColor(255, 255, 255)
 
-        # Dynamic Marks Table
+        # --- Dynamic Marks Table: one row per slot ---
         all_slots = slots if slots else ["Slot A"]
         n_data_rows = len(all_slots)
-        total_rows = 1 + n_data_rows
+        total_rows  = 1 + n_data_rows
         cols = 4
-        table_width = Inches(8.5)
+        table_width  = Inches(9.5)
         table_height = max(Inches(2.0), Inches(0.55 + n_data_rows * 0.55))
-        left_tbl = Inches(4.2)
-        top_tbl = Inches(2.5)
+        left_tbl = Inches(3.3)
+        top_tbl  = Inches(2.2)
 
         table = slide1.shapes.add_table(total_rows, cols, left_tbl, top_tbl, table_width, table_height).table
 
-        h_labels = ["Course Slot", "Total Marks", "Marks Obtained", "Class Average Mark"]
+        # Header Row
+        h_labels = ["Exam", "Total Marks", "Marks Obtained", "Class Average Mark"]
         for i, h in enumerate(h_labels):
             cell = table.cell(0, i)
             cell.text = h
             cell.fill.solid()
-            cell.fill.fore_color.rgb = RGBColor(112, 173, 71)
+            cell.fill.fore_color.rgb = RGBColor(112, 173, 71)   # SIMATS Green
             p = cell.text_frame.paragraphs[0]
             p.font.color.rgb = RGBColor(255, 255, 255)
             p.font.bold = True
-            p.font.name = "Times New Roman"
             p.font.size = Pt(18)
             p.alignment = PP_ALIGN.CENTER
 
+        # Data rows – one row per slot
         for row_idx, slot in enumerate(all_slots, start=1):
-            s_marks = marks_data.get(slot, {})
-            test1_val = str(s_marks.get('test1', '0') or '0')
-            avg_val = str(s_marks.get('avg', '0') or '0')
-            total_m_val = str(s_marks.get('total_marks', '20') or '20')
+            s_marks      = marks_data.get(slot, {})
+            test1_val    = str(s_marks.get('test1', '0') or '0')
+            avg_val      = str(s_marks.get('avg',   '0') or '0')
+            total_m_val  = str(s_marks.get('total_marks', '-') or '-')
 
             r_vals = [f"Test 1 ({slot})", total_m_val, test1_val, avg_val]
             for c_idx, val in enumerate(r_vals):
                 cell = table.cell(row_idx, c_idx)
                 cell.text = val
                 cell.fill.solid()
-                cell.fill.fore_color.rgb = RGBColor(226, 239, 218)
+                cell.fill.fore_color.rgb = RGBColor(226, 239, 218)   # Light green
                 p = cell.text_frame.paragraphs[0]
                 p.font.size = Pt(18)
-                p.font.name = "Times New Roman"
                 p.font.bold = True
                 p.alignment = PP_ALIGN.CENTER
 
         # --- SLIDE 2: MENTOR NOTES & ATTENDANCE ---
         slide2 = prs.slides.add_slide(slide_layout)
-        
-        header2 = slide2.shapes.add_textbox(Inches(0.2), Inches(0.2), Inches(12.9), Inches(1.2))
-        tf2 = header2.text_frame
-        p2 = tf2.paragraphs[0]
-        p2.text = "SIMATS ENGINEERING"
-        p2.font.size = Pt(44)
-        p2.font.bold = True
-        p2.font.name = "Times New Roman"
-        p2.font.color.rgb = RGBColor(0, 0, 0)
-        p2.alignment = PP_ALIGN.CENTER
 
+        # Read grade toggle setting
         ppt_settings = GlobalSettings.query.first()
         show_grades = ppt_settings.show_grades_in_ppt if ppt_settings else False
 
+        # Main Gray Content Box
         body_box = slide2.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(1.4), Inches(12.3), Inches(5.8))
         body_box.fill.solid()
         body_box.fill.fore_color.rgb = RGBColor(245, 245, 245)
         body_box.line.color.rgb = RGBColor(200, 200, 200)
 
-        tf_body = slide2.shapes.add_textbox(Inches(0.6), Inches(1.5), Inches(12.0), Inches(5.6)).text_frame
+        tf_body = slide2.shapes.add_textbox(Inches(0.6), Inches(1.5), Inches(12.1), Inches(5.6)).text_frame
         tf_body.word_wrap = True
 
+        # "Welcome to SIMATS ENGINEERING" with green highlight
         p = tf_body.paragraphs[0]
         p.text = "Welcome to SIMATS ENGINEERING"
         p.font.bold = True
         p.font.size = Pt(20)
-        p.font.name = "Times New Roman"
         p.font.color.rgb = RGBColor(0, 0, 0)
         if len(p.runs) > 0: add_highlight(p.runs[0], '00FF00')
 
@@ -696,32 +689,30 @@ def generate_report():
         p.text = "Dear Parent,"
         p.font.size = Pt(18)
         p.font.bold = True
-        p.font.name = "Times New Roman"
         p.space_after = Pt(10)
+
+        p = tf_body.add_paragraph()
 
         low_attendance = False
         for slot in slots:
             try:
-                if float(att_data.get(slot, 0)) < 80:
+                if int(att_data.get(slot, 0)) < 80:
                     low_attendance = True
                     break
             except (ValueError, TypeError):
                 pass
 
         if low_attendance:
-            p = tf_body.add_paragraph()
             p.text = f"{student.name or 'The student'} has attendance below 80%. Please maintain the attendance % above 80%."
-            p.font.size = Pt(18)
-            p.font.bold = True
-            p.font.name = "Times New Roman"
+            p.font.color.rgb = RGBColor(0, 0, 0)
             if len(p.runs) > 0: add_highlight(p.runs[0], 'FF0000')
         else:
-            p = tf_body.add_paragraph()
             p.text = f"So far {student.name or 'the student'} has maintained consistent attendance in the course."
-            p.font.size = Pt(18)
-            p.font.bold = True
-            p.font.name = "Times New Roman"
+            p.font.color.rgb = RGBColor(0, 0, 0)
             if len(p.runs) > 0: add_highlight(p.runs[0], '00FF00')
+
+        p.font.size = Pt(18)
+        p.font.bold = True
 
         for slot in slots:
             p = tf_body.add_paragraph()
@@ -732,9 +723,9 @@ def generate_report():
                 p.text = f"Attendance for {slot}: {att_data.get(slot, 0)}%"
             p.font.size = Pt(18)
             p.font.bold = True
-            p.font.name = "Times New Roman"
             if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
 
+        # Use student-specific observation if set, otherwise fall back to global observation
         global_obs_record = GlobalMentorObservation.query.first()
         global_obs_text = global_obs_record.content if global_obs_record else 'I personally advised the student to concentrate more on study and skill development.'
         observation_to_use = student.additional_description.strip() if (student.additional_description and student.additional_description.strip()) else global_obs_text
@@ -743,10 +734,10 @@ def generate_report():
         p.text = observation_to_use
         p.font.size = Pt(18)
         p.font.bold = True
-        p.font.name = "Times New Roman"
         if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
 
         if show_grades:
+            # --- GRADES MODE ---
             try:
                 results = json.loads(student.results_data) if student.results_data else []
             except:
@@ -756,7 +747,6 @@ def generate_report():
                 p.text = "Subject Results:"
                 p.font.size = Pt(18)
                 p.font.bold = True
-                p.font.name = "Times New Roman"
                 p.space_before = Pt(10)
                 if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
                 for r in results:
@@ -764,20 +754,18 @@ def generate_report():
                     p.text = f"  {r.get('subject', '')}  —  Grade: {r.get('grade', '')}"
                     p.font.size = Pt(18)
                     p.font.bold = True
-                    p.font.name = "Times New Roman"
                     if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
             else:
                 p = tf_body.add_paragraph()
                 p.text = "No subject results added yet."
                 p.font.size = Pt(18)
                 p.font.bold = True
-                p.font.name = "Times New Roman"
                 p.space_before = Pt(10)
         else:
+            # --- STANDARD MODE ---
             p = tf_body.add_paragraph()
             p.text = f"New course: {student.registered_new_course or 'N/A'}"
             p.font.size = Pt(18)
-            p.font.name = "Times New Roman"
             p.space_before = Pt(10)
             if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
 
@@ -789,9 +777,9 @@ def generate_report():
                 p.text = "We encourage your ward to actively participate in upcoming events and extracurricular activities to build their skills and gain valuable experience."
             p.font.size = Pt(18)
             p.font.bold = True
-            p.font.name = "Times New Roman"
             if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
 
+        # Add green institutional advisory lines (Global or Custom Override)
         advisory_to_use = student.custom_advisory.strip() if (student.custom_advisory and student.custom_advisory.strip()) else (GlobalAdvisory.query.first().content if GlobalAdvisory.query.first() else "All students are advised to pay their 2nd-year tuition fees on time through the Viana Portal.\nAdditionally, kindly upload your recent passport-size photograph to your Viana profile at the earliest...")
 
         for adv_line in advisory_to_use.split('\n'):
@@ -800,8 +788,13 @@ def generate_report():
                 p.text = adv_line.strip()
                 p.font.size = Pt(18)
                 p.font.bold = True
-                p.font.name = "Times New Roman"
                 if len(p.runs) > 0: add_highlight(p.runs[0], '00FF00')
+
+        # Apply Times New Roman font to all paragraphs
+        for paragraph in tf_body.paragraphs:
+            paragraph.font.name = 'Times New Roman'
+            if len(paragraph.runs) > 0:
+                paragraph.runs[0].font.name = 'Times New Roman'
 
     report_path = 'Mentor_Dashboard_Report.pptx'
     prs.save(report_path)
@@ -821,8 +814,6 @@ def clear_student(reg_num):
         student.online_course = None
         student.event_participation = None
         student.additional_description = None
-        student.results_data = '[]'
-        student.custom_advisory = None
         delete_photo(student.photo_path)
         student.photo_path = None
         from datetime import timedelta
@@ -867,8 +858,6 @@ def delete_all_reports():
         student.online_course = None
         student.event_participation = None
         student.additional_description = None
-        student.results_data = '[]'
-        student.custom_advisory = None
         student.photo_path = None
 
     db.session.commit()
