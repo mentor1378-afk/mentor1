@@ -14,8 +14,9 @@ from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.dml.color import RGBColor
-from pptx.oxml.xmlchemy import OxmlElement
 from datetime import datetime
+import pytz
+from pptx.oxml.xmlchemy import OxmlElement
 
 def add_highlight(run, color_hex):
     rPr = run._r.get_or_add_rPr()
@@ -50,7 +51,7 @@ def add_highlight(run, color_hex):
         rPr.append(highlight)
 
 MENTOR_NAMES = {
-    'vijay@123': 'vijayavaran',
+    'vijay@123': 'Vijayavaran',
     'mentor2@123': 'Mr. Mentor 2'
 }
 
@@ -60,10 +61,24 @@ uri = os.environ.get("DATABASE_URL", "sqlite:///database.db")
 if uri.startswith("postgres://"):
     uri = uri.replace("postgres://", "postgresql://", 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    "pool_pre_ping": True,
-    "pool_recycle": 300
-}
+
+if 'postgresql' in uri or 'postgres' in uri:
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_size': 10,
+        'max_overflow': 20,
+        'pool_timeout': 30,
+        'pool_recycle': 280,
+        'pool_pre_ping': True,
+        'connect_args': {
+            'sslmode': 'require',
+            'connect_timeout': 10,
+        },
+    }
+else:
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+    }
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -92,7 +107,10 @@ class StudentDetail(db.Model):
     online_course = db.Column(db.String(200))
     event_participation = db.Column(db.Text)
     additional_description = db.Column(db.Text)
+    results_data = db.Column(db.Text, default='[]')  # [{"subject": "Maths", "grade": "A"}]
+    custom_advisory = db.Column(db.Text)
     photo_path = db.Column(db.String(200))
+    last_updated = db.Column(db.DateTime, nullable=True)
 
     def get_attendance(self):
         try: return json.loads(self.attendance_data)
@@ -105,6 +123,18 @@ class StudentDetail(db.Model):
     def get_slots(self):
         try: return json.loads(self.slot_info)
         except: return []
+
+class GlobalAdvisory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False, default="All students are advised to pay their 2nd-year tuition fees on time through the Viana Portal.\nAdditionally, kindly upload your recent passport-size photograph to your Viana profile at the earliest, if you have not already done so....")
+
+class GlobalMentorObservation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False, default="I personally advised the student to concentrate more on study and skill development. The student is currently attending an online course to improve their technical skills, which is really appreciable.")
+
+class GlobalSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    show_grades_in_ppt = db.Column(db.Boolean, nullable=False, default=False)
 
 # Helper functions
 def delete_photo(photo_path):
@@ -126,22 +156,19 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 def seed_db():
-    # Faculty: vijay@123 (migrated from mentor1@123)
+    # Faculty 1: vijay@123 (migrated from mentor1@123 if existing)
     if not User.query.get('vijay@123'):
         old_user = User.query.get('mentor1@123')
         if old_user:
-            # Step 1: Create vijay@123 first so FK references are valid
             new_user = User(
                 username='vijay@123',
                 password_hash=old_user.password_hash,
                 role='faculty'
             )
             db.session.add(new_user)
-            db.session.flush()  # Write new user to DB before updating FKs
-            # Step 2: Update all students pointing to mentor1@123
+            db.session.flush()
             StudentDetail.query.filter_by(mentor_username='mentor1@123').update({'mentor_username': 'vijay@123'})
             db.session.flush()
-            # Step 3: Now safely delete old user
             db.session.delete(old_user)
         else:
             db.session.add(User(
@@ -150,7 +177,7 @@ def seed_db():
                 role='faculty'
             ))
 
-    # Faculty: mentor2@123
+    # Faculty 2: mentor2@123
     if not User.query.get('mentor2@123'):
         db.session.add(User(
             username='mentor2@123',
@@ -158,12 +185,30 @@ def seed_db():
             role='faculty'
         ))
 
-
-
     db.session.commit()
 
 with app.app_context():
     db.create_all()  # Only creates tables if they don't exist — never wipes data
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('student_detail')]
+        if 'mentor_username' not in columns:
+            db.session.execute(db.text('ALTER TABLE student_detail ADD COLUMN mentor_username VARCHAR(50)'))
+            db.session.commit()
+        if 'last_updated' not in columns:
+            col_type = 'TIMESTAMP' if db.engine.name == 'postgresql' else 'DATETIME'
+            db.session.execute(db.text(f'ALTER TABLE student_detail ADD COLUMN last_updated {col_type}'))
+            db.session.commit()
+        if 'results_data' not in columns:
+            db.session.execute(db.text('ALTER TABLE student_detail ADD COLUMN results_data TEXT DEFAULT \'[]\''))
+            db.session.commit()
+        if 'custom_advisory' not in columns:
+            db.session.execute(db.text('ALTER TABLE student_detail ADD COLUMN custom_advisory TEXT'))
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Migration error: {e}")
     seed_db()
 
 # Routes
@@ -226,63 +271,85 @@ def student_dashboard():
         db.session.commit()
 
     if request.method == 'POST':
-        student.name = request.form.get('name', student.name) or student.name
-        student.course = request.form.get('course', student.course) or student.course
+        try:
+            student.name = (request.form.get('name') or '').strip() or student.name
+            student.course = (request.form.get('course') or '').strip() or student.course
 
-        # Dynamic Slots handling
-        slots = request.form.getlist('slot_names[]')
-        if not slots:
-            slots = student.get_slots() or []
-        student.slot_info = json.dumps(slots)
+            # Dynamic Slots handling
+            slots = [s.strip() for s in request.form.getlist('slot_names[]') if s and s.strip()]
+            if not slots:
+                slots = student.get_slots() or []
+            student.slot_info = json.dumps(slots)
 
-        att_data = {}
-        marks_data = {}
-        current_attendance = student.get_attendance()
-        current_marks = student.get_marks()
-        for slot in slots:
-            if not slot:
-                continue
-            att_data[slot] = request.form.get(f'att_{slot}', current_attendance.get(slot, 0))
-            marks_data[slot] = {
-                'total_marks': request.form.get(f'total_marks_{slot}', current_marks.get(slot, {}).get('total_marks', '-')),
-                'model': request.form.get(f'model_{slot}', current_marks.get(slot, {}).get('model', '-')),
-                'test1': request.form.get(f'test1_{slot}', current_marks.get(slot, {}).get('test1', '-')),
-                'test2': request.form.get(f'test2_{slot}', current_marks.get(slot, {}).get('test2', '-')),
-                'avg': request.form.get(f'avg_{slot}', current_marks.get(slot, {}).get('avg', '-')),
-                'course': request.form.get(f'course_{slot}', current_marks.get(slot, {}).get('course', '-'))
-            }
+            att_data = {}
+            marks_data = {}
+            current_attendance = student.get_attendance()
+            current_marks = student.get_marks()
+            for slot in slots:
+                att_val = request.form.get(f'att_{slot}', current_attendance.get(slot, 0))
+                att_data[slot] = str(att_val).strip() if att_val is not None else 0
+                marks_data[slot] = {
+                    'model': (request.form.get(f'model_{slot}') or current_marks.get(slot, {}).get('model', '-')).strip(),
+                    'test1': (request.form.get(f'test1_{slot}') or current_marks.get(slot, {}).get('test1', '-')).strip(),
+                    'test2': (request.form.get(f'test2_{slot}') or current_marks.get(slot, {}).get('test2', '-')).strip(),
+                    'avg': (request.form.get(f'avg_{slot}') or current_marks.get(slot, {}).get('avg', '-')).strip(),
+                    'total_marks': (request.form.get(f'total_marks_{slot}') or current_marks.get(slot, {}).get('total_marks', '')).strip(),
+                    'course': (request.form.get(f'course_{slot}') or current_marks.get(slot, {}).get('course', '')).strip()
+                }
 
-        student.attendance_data = json.dumps(att_data)
-        student.marks_data = json.dumps(marks_data)
+            student.attendance_data = json.dumps(att_data)
+            student.marks_data = json.dumps(marks_data)
 
-        student.registered_new_course = request.form.get('registered_new_course', student.registered_new_course or '')
-        student.online_course = request.form.get('online_course', student.online_course or '')
-        student.event_participation = request.form.get('event_participation', student.event_participation or '')
-        student.additional_description = request.form.get('description', student.additional_description or '')
+            student.registered_new_course = (request.form.get('registered_new_course') or '').strip()
+            student.online_course = (request.form.get('online_course') or '').strip()
+            student.event_participation = (request.form.get('event_participation') or '').strip()
+            student.additional_description = (request.form.get('description') or '').strip()
 
-        file = request.files.get('photo')
-        if file and file.filename and allowed_file(file.filename):
-            if os.environ.get('CLOUDINARY_URL'):
-                try:
-                    upload_result = cloudinary.uploader.upload(file, folder="simats_profiles")
-                    student.photo_path = upload_result.get('secure_url')
-                except Exception as e:
-                    flash(f'Failed to upload to Cloudinary. Please check your CLOUDINARY_URL. Error: {str(e)}', 'danger')
-            else:
-                filename = secure_filename(f"{session['user']}_{file.filename}")
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
-                student.photo_path = filepath
+            # Results data
+            result_subjects = request.form.getlist('result_subject[]')
+            result_grades = request.form.getlist('result_grade[]')
+            if result_subjects:
+                results = [{'subject': s.strip(), 'grade': g.strip()} for s, g in zip(result_subjects, result_grades) if s and s.strip()]
+                student.results_data = json.dumps(results)
 
-        db.session.commit()
-        flash('Details updated successfully!', 'success')
+            file = request.files.get('photo')
+            if file and file.filename and allowed_file(file.filename):
+                if os.environ.get('CLOUDINARY_URL'):
+                    try:
+                        upload_result = cloudinary.uploader.upload(file, folder="simats_profiles")
+                        student.photo_path = upload_result.get('secure_url')
+                    except Exception as e:
+                        flash(f'Failed to upload photo to cloud storage: {str(e)}', 'warning')
+                else:
+                    try:
+                        filename = secure_filename(f"{session['user']}_{file.filename}")
+                        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                        file.save(filepath)
+                        student.photo_path = filepath
+                    except Exception as e:
+                        print(f"Local photo upload warning: {e}")
+
+            from datetime import timedelta
+            student.last_updated = datetime.utcnow() + timedelta(hours=5, minutes=30)
+            
+            db.session.commit()
+            flash('Details updated successfully!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            print(f"Student submit error: {e}")
+            flash('An error occurred while saving your details. Please try again.', 'danger')
+
         return redirect(url_for('student_dashboard'))
     
-    # Passing current data as dicts
-    return render_template('student.html', student=student, 
-                           attendance=student.get_attendance(), 
-                           marks=student.get_marks(), 
-                           slots=student.get_slots())
+    try:
+        results = json.loads(student.results_data) if student.results_data else []
+    except:
+        results = []
+    return render_template('student.html', student=student,
+                           attendance=student.get_attendance(),
+                           marks=student.get_marks(),
+                           slots=student.get_slots(),
+                           results=results)
 
 @app.route('/add_student', methods=['POST'])
 def add_student():
@@ -301,7 +368,13 @@ def add_student():
             password_hash=bcrypt.generate_password_hash(password).decode('utf-8'),
             role='student'
         )
-        new_detail = StudentDetail(reg_num=reg_num, name=name, mentor_username=session['user'])
+        from datetime import timedelta
+        new_detail = StudentDetail(
+            reg_num=reg_num,
+            name=name,
+            mentor_username=session['user'],
+            last_updated=datetime.utcnow() + timedelta(hours=5, minutes=30)
+        )
         db.session.add(new_user)
         db.session.add(new_detail)
         db.session.commit()
@@ -314,7 +387,13 @@ def edit_student_faculty(reg_num):
     if 'user' not in session or session['role'] != 'faculty':
         return redirect(url_for('login'))
     
-    student = StudentDetail.query.get(reg_num)
+    student = StudentDetail.query.filter_by(reg_num=reg_num, mentor_username=session['user']).first()
+    if not student:
+        # Fallback if student has no mentor set yet
+        student = StudentDetail.query.get(reg_num)
+        if student and not student.mentor_username:
+            student.mentor_username = session['user']
+
     if student:
         student.name = request.form.get('name', student.name) or student.name
         student.course = request.form.get('course', student.course) or student.course
@@ -322,7 +401,15 @@ def edit_student_faculty(reg_num):
         student.online_course = request.form.get('online_course', student.online_course or '')
         student.event_participation = request.form.get('event_participation', student.event_participation or '')
         student.additional_description = request.form.get('description', student.additional_description or '')
-        
+        student.custom_advisory = request.form.get('custom_advisory', student.custom_advisory or '')
+
+        result_subjects = request.form.getlist('result_subject[]')
+        result_grades = request.form.getlist('result_grade[]')
+        results = [{'subject': s.strip(), 'grade': g.strip()} for s, g in zip(result_subjects, result_grades) if s.strip()]
+        student.results_data = json.dumps(results)
+
+        from datetime import timedelta
+        student.last_updated = datetime.utcnow() + timedelta(hours=5, minutes=30)
         db.session.commit()
         flash(f'Details for {student.name or reg_num} updated successfully!', 'success')
     else:
@@ -330,20 +417,62 @@ def edit_student_faculty(reg_num):
         
     return redirect(url_for('faculty_dashboard'))
 
+@app.route('/update_global_advisory', methods=['POST'])
+def update_global_advisory():
+    if 'user' not in session or session['role'] != 'faculty':
+        return redirect(url_for('login'))
+    
+    advisory_text = request.form.get('global_advisory', '').strip()
+    global_adv = GlobalAdvisory.query.first()
+    if not global_adv:
+        global_adv = GlobalAdvisory(id=1, content=advisory_text)
+        db.session.add(global_adv)
+    else:
+        global_adv.content = advisory_text
+    
+    db.session.commit()
+    flash('Global Institutional Advisory updated for all students!', 'success')
+    return redirect(url_for('faculty_dashboard'))
+
+@app.route('/update_global_observation', methods=['POST'])
+def update_global_observation():
+    if 'user' not in session or session['role'] != 'faculty':
+        return redirect(url_for('login'))
+    
+    observation_text = request.form.get('global_observation', '').strip()
+    global_obs = GlobalMentorObservation.query.first()
+    if not global_obs:
+        global_obs = GlobalMentorObservation(id=1, content=observation_text)
+        db.session.add(global_obs)
+    else:
+        global_obs.content = observation_text
+    
+    db.session.commit()
+    flash('Global Mentor Observation updated for all students!', 'success')
+    return redirect(url_for('faculty_dashboard'))
+
 @app.route('/faculty')
 def faculty_dashboard():
     if 'user' not in session or session['role'] != 'faculty':
         return redirect(url_for('login'))
     
+    # Strictly filter mentees by logged in mentor
     students = StudentDetail.query.filter_by(mentor_username=session['user']).all()
-    # Simplified stats for global update
+    global_adv = GlobalAdvisory.query.first()
+    global_advisory_text = global_adv.content if global_adv else ""
+    global_obs = GlobalMentorObservation.query.first()
+    global_observation_text = global_obs.content if global_obs else ""
+    
     total_att_a = 0
     count_a = 0
     for s in students:
         att = s.get_attendance()
         if 'Slot A' in att:
-            total_att_a += int(att['Slot A'] or 0)
-            count_a += 1
+            try:
+                total_att_a += int(att['Slot A'] or 0)
+                count_a += 1
+            except (ValueError, TypeError):
+                pass
     
     stats = {
         'total_students': len(students),
@@ -364,13 +493,34 @@ def faculty_dashboard():
             'online_course': s.online_course,
             'event_participation': s.event_participation,
             'additional_description': s.additional_description,
+            'custom_advisory': s.custom_advisory,
+            'results_data': s.results_data,
             'photo_path': s.photo_path,
+            'last_updated': s.last_updated.strftime('%d-%b-%Y %I:%M %p') if s.last_updated else 'N/A',
         }
         for s in students
     ]
 
     mentor_display = MENTOR_NAMES.get(session['user'], session['user'])
-    return render_template('faculty.html', students=students, students_json=students_json, stats=stats, mentor_name=mentor_display)
+
+    return render_template('faculty.html', students=students, students_json=students_json, stats=stats,
+                           mentor_name=mentor_display,
+                           global_advisory=global_advisory_text,
+                           global_observation=global_observation_text,
+                           show_grades_in_ppt=(GlobalSettings.query.first().show_grades_in_ppt if GlobalSettings.query.first() else False))
+
+@app.route('/toggle_grade_ppt', methods=['POST'])
+def toggle_grade_ppt():
+    if 'user' not in session or session['role'] != 'faculty':
+        return redirect(url_for('login'))
+    settings = GlobalSettings.query.first()
+    if not settings:
+        settings = GlobalSettings(id=1, show_grades_in_ppt=True)
+        db.session.add(settings)
+    else:
+        settings.show_grades_in_ppt = not settings.show_grades_in_ppt
+    db.session.commit()
+    return redirect(url_for('faculty_dashboard'))
 
 @app.route('/generate_report')
 def generate_report():
@@ -382,20 +532,12 @@ def generate_report():
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
     
+    mentor_name = MENTOR_NAMES.get(session['user'], session['user'])
+
     for student in students:
         slots = student.get_slots()
         att_data = student.get_attendance()
         marks_data = student.get_marks()
-        mentor_name = MENTOR_NAMES.get(session['user'], session['user'])
-
-        low_attendance_flag = False
-        for sl in slots:
-            try:
-                if float(att_data.get(sl, 0)) < 80:
-                    low_attendance_flag = True
-                    break
-            except ValueError:
-                pass
         
         # --- SLIDE 1: ACADEMIC PERFORMANCE ---
         slide_layout = prs.slide_layouts[6] # Blank
@@ -413,7 +555,7 @@ def generate_report():
         p.font.color.rgb = RGBColor(0, 0, 0)
         p.alignment = PP_ALIGN.CENTER
 
-        # Banner Table for Name/Reg/Mentor 1x6 for widescreen array
+        # Banner Table for Name/Reg/Mentor
         banner_tbl = slide1.shapes.add_table(1, 6, Inches(0.2), Inches(1.4), Inches(12.9), Inches(0.5)).table
         banner_content = [
             "Mentee Name:", student.name or 'N/A', 
@@ -441,7 +583,6 @@ def generate_report():
         width_img = Inches(3.0)
         height_img = Inches(3.5)
         
-        # Draw a gray frame
         frame = slide1.shapes.add_shape(MSO_SHAPE.RECTANGLE, left_img - Inches(0.1), top_img - Inches(0.1), width_img + Inches(0.2), height_img + Inches(0.2))
         frame.fill.solid()
         frame.fill.fore_color.rgb = RGBColor(230, 230, 230)
@@ -476,23 +617,24 @@ def generate_report():
             p.font.bold = True
             p.font.color.rgb = RGBColor(255, 255, 255)
 
-        # Table for Marks
-        rows = max(1 + len(slots), 2)
+        # Dynamic Marks Table
+        all_slots = slots if slots else ["Slot A"]
+        n_data_rows = len(all_slots)
+        total_rows = 1 + n_data_rows
         cols = 4
         table_width = Inches(8.5)
-        table_height = Inches(0.8 * rows)
+        table_height = max(Inches(2.0), Inches(0.55 + n_data_rows * 0.55))
         left_tbl = Inches(4.2)
         top_tbl = Inches(2.5)
-        
-        table = slide1.shapes.add_table(rows, cols, left_tbl, top_tbl, table_width, table_height).table
-        
-        # Header Row Styling
+
+        table = slide1.shapes.add_table(total_rows, cols, left_tbl, top_tbl, table_width, table_height).table
+
         h_labels = ["Course Slot", "Total Marks", "Marks Obtained", "Class Average Mark"]
         for i, h in enumerate(h_labels):
             cell = table.cell(0, i)
             cell.text = h
             cell.fill.solid()
-            cell.fill.fore_color.rgb = RGBColor(112, 173, 71) # SIMATS Green
+            cell.fill.fore_color.rgb = RGBColor(112, 173, 71)
             p = cell.text_frame.paragraphs[0]
             p.font.color.rgb = RGBColor(255, 255, 255)
             p.font.bold = True
@@ -500,23 +642,18 @@ def generate_report():
             p.font.size = Pt(18)
             p.alignment = PP_ALIGN.CENTER
 
-        row_data = []
-        if not slots:
-            row_data.append(["Test 1 (N/A)", "20", "0", "0"])
-        else:
-            for slot in slots:
-                s_marks = marks_data.get(slot, {})
-                test1_value = s_marks.get('test1', '0') or '0'
-                avg_value = s_marks.get('avg', '0') or '0'
-                total_marks_value = s_marks.get('total_marks', '20') or '20'
-                row_data.append([f"Test 1 ({slot})", total_marks_value, test1_value, avg_value])
-        
-        for r_idx, r_vals in enumerate(row_data):
+        for row_idx, slot in enumerate(all_slots, start=1):
+            s_marks = marks_data.get(slot, {})
+            test1_val = str(s_marks.get('test1', '0') or '0')
+            avg_val = str(s_marks.get('avg', '0') or '0')
+            total_m_val = str(s_marks.get('total_marks', '20') or '20')
+
+            r_vals = [f"Test 1 ({slot})", total_m_val, test1_val, avg_val]
             for c_idx, val in enumerate(r_vals):
-                cell = table.cell(r_idx + 1, c_idx)
-                cell.text = str(val)
+                cell = table.cell(row_idx, c_idx)
+                cell.text = val
                 cell.fill.solid()
-                cell.fill.fore_color.rgb = RGBColor(226, 239, 218) # Light green
+                cell.fill.fore_color.rgb = RGBColor(226, 239, 218)
                 p = cell.text_frame.paragraphs[0]
                 p.font.size = Pt(18)
                 p.font.name = "Times New Roman"
@@ -526,7 +663,6 @@ def generate_report():
         # --- SLIDE 2: MENTOR NOTES & ATTENDANCE ---
         slide2 = prs.slides.add_slide(slide_layout)
         
-        # Header Box with Logo-like text
         header2 = slide2.shapes.add_textbox(Inches(0.2), Inches(0.2), Inches(12.9), Inches(1.2))
         tf2 = header2.text_frame
         p2 = tf2.paragraphs[0]
@@ -537,7 +673,9 @@ def generate_report():
         p2.font.color.rgb = RGBColor(0, 0, 0)
         p2.alignment = PP_ALIGN.CENTER
 
-        # Main Gray Content Box
+        ppt_settings = GlobalSettings.query.first()
+        show_grades = ppt_settings.show_grades_in_ppt if ppt_settings else False
+
         body_box = slide2.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.5), Inches(1.4), Inches(12.3), Inches(5.8))
         body_box.fill.solid()
         body_box.fill.fore_color.rgb = RGBColor(245, 245, 245)
@@ -545,100 +683,125 @@ def generate_report():
 
         tf_body = slide2.shapes.add_textbox(Inches(0.6), Inches(1.5), Inches(12.0), Inches(5.6)).text_frame
         tf_body.word_wrap = True
-        
-        # "Welcome to SIMATS ENGINEERING"
+
         p = tf_body.paragraphs[0]
-        run = p.add_run()
-        run.text = "Welcome to SIMATS ENGINEERING"
-        run.font.bold = True
-        run.font.size = Pt(22)
-        run.font.name = "Times New Roman"
-        run.font.color.rgb = RGBColor(0, 0, 0)
-        add_highlight(run, '00FF00') # Green highlight
-        
+        p.text = "Welcome to SIMATS ENGINEERING"
+        p.font.bold = True
+        p.font.size = Pt(20)
+        p.font.name = "Times New Roman"
+        p.font.color.rgb = RGBColor(0, 0, 0)
+        if len(p.runs) > 0: add_highlight(p.runs[0], '00FF00')
+
         p = tf_body.add_paragraph()
-        run = p.add_run()
-        run.text = "Dear Parent,"
-        run.font.size = Pt(18)
-        run.font.bold = True
-        run.font.name = "Times New Roman"
-        
-        if slots:
-            for slot in slots:
-                att_val = att_data.get(slot, '0') or '0'
-                s_marks = marks_data.get(slot, {}) or {}
-                course_val = s_marks.get('course', 'N/A') or 'N/A'
-                
-                p = tf_body.add_paragraph()
-                run = p.add_run()
-                run.text = f"Attendance for {slot}: {course_val}: {att_val}%"
-                run.font.size = Pt(18)
-                run.font.bold = True
-                run.font.name = "Times New Roman"
-                
-                try:
-                    is_low = float(att_val) < 80
-                except ValueError:
-                    is_low = False
-                    
-                if is_low:
-                    add_highlight(run, 'FF0000') # Red highlighting
-                else:
-                    add_highlight(run, '00FF00') # Green highlighting
+        p.text = "Dear Parent,"
+        p.font.size = Pt(18)
+        p.font.bold = True
+        p.font.name = "Times New Roman"
+        p.space_after = Pt(10)
+
+        low_attendance = False
+        for slot in slots:
+            try:
+                if float(att_data.get(slot, 0)) < 80:
+                    low_attendance = True
+                    break
+            except (ValueError, TypeError):
+                pass
+
+        if low_attendance:
+            p = tf_body.add_paragraph()
+            p.text = f"{student.name or 'The student'} has attendance below 80%. Please maintain the attendance % above 80%."
+            p.font.size = Pt(18)
+            p.font.bold = True
+            p.font.name = "Times New Roman"
+            if len(p.runs) > 0: add_highlight(p.runs[0], 'FF0000')
         else:
             p = tf_body.add_paragraph()
-            run = p.add_run()
-            run.text = "Attendance: N/A"
-            run.font.size = Pt(18)
-            run.font.bold = True
-            run.font.name = "Times New Roman"
-            add_highlight(run, '00FF00')
-        
+            p.text = f"So far {student.name or 'the student'} has maintained consistent attendance in the course."
+            p.font.size = Pt(18)
+            p.font.bold = True
+            p.font.name = "Times New Roman"
+            if len(p.runs) > 0: add_highlight(p.runs[0], '00FF00')
+
+        for slot in slots:
+            p = tf_body.add_paragraph()
+            course_name = marks_data.get(slot, {}).get('course', '')
+            if course_name:
+                p.text = f"Attendance for {slot}: {course_name}: {att_data.get(slot, 0)}%"
+            else:
+                p.text = f"Attendance for {slot}: {att_data.get(slot, 0)}%"
+            p.font.size = Pt(18)
+            p.font.bold = True
+            p.font.name = "Times New Roman"
+            if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
+
+        global_obs_record = GlobalMentorObservation.query.first()
+        global_obs_text = global_obs_record.content if global_obs_record else 'I personally advised the student to concentrate more on study and skill development.'
+        observation_to_use = student.additional_description.strip() if (student.additional_description and student.additional_description.strip()) else global_obs_text
         p = tf_body.add_paragraph()
-        p.space_before = Pt(18)
-        run = p.add_run()
-        run.text = f"{student.additional_description or 'I personally advised him to concentrate more on study and skill development... now he is currently attending an online course to improve his technical skills which is really appreciable...'}"
-        run.font.size = Pt(18)
-        run.font.bold = True
-        run.font.name = "Times New Roman"
-        add_highlight(run, 'FFFF00') # Yellow highlighting
-        
-        p = tf_body.add_paragraph()
-        run = p.add_run()
-        run.text = f"New course: {student.registered_new_course or 'N/A'}"
-        run.font.size = Pt(18)
-        run.font.bold = True
-        run.font.name = "Times New Roman"
-        add_highlight(run, 'FFFF00') # Yellow highlighting
-        
-        p = tf_body.add_paragraph()
-        p.space_before = Pt(18)
-        run = p.add_run()
-        if student.event_participation:
-            run.text = f"Your ward participated in: {student.event_participation} and gave his very best throughout the journey. His dedication, hard work, and sincere efforts are truly appreciable."
+        p.space_before = Pt(15)
+        p.text = observation_to_use
+        p.font.size = Pt(18)
+        p.font.bold = True
+        p.font.name = "Times New Roman"
+        if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
+
+        if show_grades:
+            try:
+                results = json.loads(student.results_data) if student.results_data else []
+            except:
+                results = []
+            if results:
+                p = tf_body.add_paragraph()
+                p.text = "Subject Results:"
+                p.font.size = Pt(18)
+                p.font.bold = True
+                p.font.name = "Times New Roman"
+                p.space_before = Pt(10)
+                if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
+                for r in results:
+                    p = tf_body.add_paragraph()
+                    p.text = f"  {r.get('subject', '')}  —  Grade: {r.get('grade', '')}"
+                    p.font.size = Pt(18)
+                    p.font.bold = True
+                    p.font.name = "Times New Roman"
+                    if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
+            else:
+                p = tf_body.add_paragraph()
+                p.text = "No subject results added yet."
+                p.font.size = Pt(18)
+                p.font.bold = True
+                p.font.name = "Times New Roman"
+                p.space_before = Pt(10)
         else:
-            run.text = "I have advised this student to actively participate in co-curricular and extracurricular events to improve their technical exposure and overall skills."
-        run.font.size = Pt(18)
-        run.font.bold = True
-        run.font.name = "Times New Roman"
-        add_highlight(run, 'FFFF00') # Yellow highlighting
+            p = tf_body.add_paragraph()
+            p.text = f"New course: {student.registered_new_course or 'N/A'}"
+            p.font.size = Pt(18)
+            p.font.name = "Times New Roman"
+            p.space_before = Pt(10)
+            if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
 
-        # Administrative notices (Green Highlights)
-        p = tf_body.add_paragraph()
-        run = p.add_run()
-        run.text = "All students are advised to pay their 2nd-year tuition fees on time through the Viana Portal."
-        run.font.size = Pt(18)
-        run.font.bold = True
-        run.font.name = "Times New Roman"
-        add_highlight(run, '00FF00')
+            p = tf_body.add_paragraph()
+            p.space_before = Pt(15)
+            if student.event_participation and student.event_participation.strip():
+                p.text = f"Your ward participated in: {student.event_participation.strip()} and gave his very best throughout the journey. His dedication, hard work, and sincere efforts are truly appreciable."
+            else:
+                p.text = "We encourage your ward to actively participate in upcoming events and extracurricular activities to build their skills and gain valuable experience."
+            p.font.size = Pt(18)
+            p.font.bold = True
+            p.font.name = "Times New Roman"
+            if len(p.runs) > 0: add_highlight(p.runs[0], 'FFFF00')
 
-        p = tf_body.add_paragraph()
-        run = p.add_run()
-        run.text = "Additionally, kindly upload your recent passport-size photograph to your Viana profile at the earliest, if you have not already done so...."
-        run.font.size = Pt(18)
-        run.font.bold = True
-        run.font.name = "Times New Roman"
-        add_highlight(run, '00FF00')
+        advisory_to_use = student.custom_advisory.strip() if (student.custom_advisory and student.custom_advisory.strip()) else (GlobalAdvisory.query.first().content if GlobalAdvisory.query.first() else "All students are advised to pay their 2nd-year tuition fees on time through the Viana Portal.\nAdditionally, kindly upload your recent passport-size photograph to your Viana profile at the earliest...")
+
+        for adv_line in advisory_to_use.split('\n'):
+            if adv_line.strip():
+                p = tf_body.add_paragraph()
+                p.text = adv_line.strip()
+                p.font.size = Pt(18)
+                p.font.bold = True
+                p.font.name = "Times New Roman"
+                if len(p.runs) > 0: add_highlight(p.runs[0], '00FF00')
 
     report_path = 'Mentor_Dashboard_Report.pptx'
     prs.save(report_path)
@@ -649,7 +812,7 @@ def clear_student(reg_num):
     if 'user' not in session or session['role'] != 'faculty':
         return redirect(url_for('login'))
     
-    student = StudentDetail.query.get(reg_num)
+    student = StudentDetail.query.filter_by(reg_num=reg_num, mentor_username=session['user']).first()
     if student:
         student.slot_info = '[]'
         student.attendance_data = '{}'
@@ -658,8 +821,12 @@ def clear_student(reg_num):
         student.online_course = None
         student.event_participation = None
         student.additional_description = None
+        student.results_data = '[]'
+        student.custom_advisory = None
         delete_photo(student.photo_path)
         student.photo_path = None
+        from datetime import timedelta
+        student.last_updated = datetime.utcnow() + timedelta(hours=5, minutes=30)
         db.session.commit()
         flash(f'Report data for {student.name or reg_num} has been cleared.', 'success')
     else:
@@ -672,12 +839,11 @@ def remove_student(reg_num):
     if 'user' not in session or session['role'] != 'faculty':
         return redirect(url_for('login'))
     
-    student = StudentDetail.query.get(reg_num)
+    student = StudentDetail.query.filter_by(reg_num=reg_num, mentor_username=session['user']).first()
     if student:
         delete_photo(student.photo_path)
         db.session.delete(student)
     
-    # Delete the student's login account
     user = User.query.get(reg_num)
     if user:
         db.session.delete(user)
@@ -691,7 +857,6 @@ def delete_all_reports():
     if 'user' not in session or session['role'] != 'faculty':
         return redirect(url_for('login'))
     
-    # Only clear PPT/report fields — keep student accounts and rows intact
     students = StudentDetail.query.filter_by(mentor_username=session['user']).all()
     for student in students:
         delete_photo(student.photo_path)
@@ -702,6 +867,8 @@ def delete_all_reports():
         student.online_course = None
         student.event_participation = None
         student.additional_description = None
+        student.results_data = '[]'
+        student.custom_advisory = None
         student.photo_path = None
 
     db.session.commit()

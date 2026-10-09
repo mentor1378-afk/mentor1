@@ -4,414 +4,510 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Dashboard | SIMATS</title>
+    <title>Student Portal | SIMATS</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 
 <body class="bg-[#0a0c10]">
-    <!-- Hamburger Menu Button -->
+    <!-- Mobile Hamburger Menu Button -->
     <button class="mobile-menu-btn" id="mobile-menu-btn" onclick="toggleMobileSidebar()">☰</button>
-    <!-- Sidebar Overlay -->
+
+    <!-- Sidebar Overlay for Mobile -->
     <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
-    <!-- Custom Add Slot Modal -->
-    <div class="slot-modal-overlay" id="slot-modal-overlay">
-        <div class="slot-modal align-middle">
-            <h3 class="mb-4">Add New Slot</h3>
-            <p class="mb-2">Enter the slot name (e.g. Slot C)</p>
-            <input type="text" id="slot-modal-input" placeholder="Slot Name..." autocomplete="off" class="mb-4">
-            <p class="mb-2">Enter the course name (e.g. operating system CSA 0408)</p>
-            <input type="text" id="slot-modal-course-input" placeholder="Course Name..." autocomplete="off">
-            <div id="slot-modal-error" class="hidden text-red-500 text-xs font-bold mt-2">⚠ Slot already exists!</div>
-            <div class="slot-modal-actions mt-4">
-                <button class="slot-modal-cancel" onclick="closeSlotModal()">Cancel</button>
-                <button class="slot-modal-confirm" onclick="confirmAddSlot()">Add Slot</button>
-            </div>
-        </div>
-    </div>
-
     <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
-            <div class="flex items-center space-x-2 mb-12">
-                <div class="p-2 bg-white/5 rounded-lg border border-white/10">
-                    <img src="/static/images/logo.png" class="w-6 h-6 object-contain" alt="Logo">
-                </div>
-                <span class="font-outfit font-black text-white text-lg tracking-tight">SIMATS</span>
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar icon-sidebar flex flex-col items-center" id="sidebar">
+            <div class="p-4 bg-white/5 rounded-xl border border-white/10 mb-8">
+                <img src="/static/images/logo.png" class="w-8 h-8 object-contain" alt="Logo">
             </div>
 
-            <div class="text-center mb-10">
-                <div class="w-24 h-24 mx-auto rounded-full border-4 border-gray-800 overflow-hidden mb-4">
-                    {% if student.photo_path %}
-                    <img src="{{ student.photo_path }}" class="w-full h-full object-cover">
-                    {% else %}
-                    <img src="https://via.placeholder.com/100" class="w-full h-full object-cover">
-                    {% endif %}
-                </div>
-                <h3 class="text-white font-bold">{{ student.name or 'Ibrahim' }}</h3>
-                <p class="text-[10px] text-blue-400 font-bold uppercase tracking-widest mt-1">{{ student.reg_num }}</p>
-                <div
-                    class="mt-4 bg-blue-500/10 text-blue-400 text-[10px] font-bold py-1 px-3 rounded-full inline-block">
-                    Student</div>
-            </div>
-
-            <nav class="space-y-1">
-                <a href="#dashboard" class="menu-item active" onclick="showSection('dashboard')">
-                    <i data-lucide="layout-dashboard" class="w-4 h-4 mr-3"></i>
-                    <span class="text-sm font-semibold">Dashboard</span>
+            <nav class="space-y-6">
+                <a href="#dashboard" onclick="showSection('dashboard')"
+                    class="p-3 bg-white/5 rounded-xl border border-white/10 text-purple-400 block active-icon"
+                    title="Dashboard">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
                 </a>
-                <a href="#details" class="menu-item" onclick="showSection('details')">
-                    <i data-lucide="file-text" class="w-4 h-4 mr-3"></i>
-                    <span class="text-sm font-semibold">My Details</span>
+                <a href="#academic" onclick="showSection('academic')"
+                    class="p-3 text-gray-600 block hover:text-white transition" title="Academic Profile">
+                    <i data-lucide="user-check" class="w-5 h-5"></i>
                 </a>
-                <a href="#profile" class="menu-item" onclick="showSection('profile')">
-                    <i data-lucide="user-circle" class="w-4 h-4 mr-3"></i>
-                    <span class="text-sm font-semibold">Profile</span>
+                <a href="#results" onclick="showSection('results')"
+                    class="p-3 text-gray-600 block hover:text-white transition" title="My Results">
+                    <i data-lucide="trophy" class="w-5 h-5"></i>
                 </a>
-                <a href="#security" class="menu-item" onclick="showSection('security')">
-                    <i data-lucide="key" class="w-4 h-4 mr-3"></i>
-                    <span class="text-sm font-semibold">Change Password</span>
+                <a href="#security" onclick="showSection('security')"
+                    class="p-3 text-gray-600 block hover:text-white transition" title="Security Settings">
+                    <i data-lucide="key" class="w-5 h-5"></i>
                 </a>
             </nav>
 
             <div class="mt-auto flex flex-col items-center space-y-6 pb-6">
-                <div
-                    class="text-[8px] text-white font-bold tracking-[0.2em] uppercase text-center space-y-1 opacity-60">
-                    <p>Created by Sayyad Ibrahim</p>
-                    <p>Powered by I-7 Tech studio</p>
+                <div class="text-[8px] text-white font-bold tracking-[0.2em] uppercase text-center space-y-1 opacity-60 vertical-text"
+                    style="writing-mode: vertical-rl; transform: rotate(180deg);">
+                    <span>Created by Sayyad Ibrahim | Powered by I-7 Tech studio</span>
                 </div>
-                <div class="flex items-center gap-3">
-                    <a href="https://www.instagram.com/ibrahim_12789?igsh=ZTZqMDRybGdiZng0" target="_blank"
-                        title="Instagram" class="text-pink-400 hover:text-pink-300 transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                            <path
-                                d="M12 2.163c3.204 0 3.584.012 4.85.07 1.366.062 2.633.334 3.608 1.308.975.975 1.246 2.242 1.308 3.608.058 1.266.07 1.646.07 4.85s-.012 3.584-.07 4.85c-.062 1.366-.334 2.633-1.308 3.608-.975.975-2.242 1.246-3.608 1.308-1.266.058-1.646.07-4.85.07s-3.584-.012-4.85-.07c-1.366-.062-2.633-.334-3.608-1.308-.975-.975-1.246-2.242-1.308-3.608C2.175 15.584 2.163 15.204 2.163 12s.012-3.584.07-4.85c.062-1.366.334-2.633 1.308-3.608.975-.975 2.242-1.246 3.608-1.308C8.416 2.175 8.796 2.163 12 2.163zm0-2.163C8.741 0 8.332.014 7.052.072 5.197.157 3.355.673 2.014 2.014.673 3.355.157 5.197.072 7.052.014 8.332 0 8.741 0 12c0 3.259.014 3.668.072 4.948.085 1.855.601 3.697 1.942 5.038 1.341 1.341 3.183 1.857 5.038 1.942C8.332 23.986 8.741 24 12 24s3.668-.014 4.948-.072c1.855-.085 3.697-.601 5.038-1.942 1.341-1.341 1.857-3.183 1.942-5.038.058-1.28.072-1.689.072-4.948s-.014-3.668-.072-4.948c-.085-1.855-.601-3.697-1.942-5.038C20.645.673 18.803.157 16.948.072 15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324A6.162 6.162 0 0 0 12 5.838zm0 10.162a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z" />
-                        </svg>
-                    </a>
-                    <a href="https://www.linkedin.com/in/ibrahim-sayyad-5619ba380?utm_source=share_via&utm_content=profile&utm_medium=member_android"
-                        target="_blank" title="LinkedIn" class="text-blue-400 hover:text-blue-300 transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                            <path
-                                d="M20.447 20.452H16.89v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a1.98 1.98 0 1 1 0-3.96 1.98 1.98 0 0 1 0 3.96zm1.71 13.019H3.627V9h3.42v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-                        </svg>
-                    </a>
-                </div>
-
-                <a href="/logout" class="menu-item text-red-400 hover:bg-red-500/5 w-full">
-                    <i data-lucide="log-out" class="w-4 h-4 mr-3"></i>
-                    <span class="text-sm font-semibold">Logout</span>
+                <a href="/logout" class="p-3 text-gray-600 block hover:text-white transition" title="Logout">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
                 </a>
             </div>
         </aside>
 
         <!-- Main Content -->
-        <main class="main-content">
+        <main class="main-content icon-main">
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             {% for category, message in messages %}
-            <div class="p-4 mb-8 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-sm">
+            {% if category == 'success' %}
+            <div id="flash-msg"
+                class="p-4 mb-6 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-sm transition-opacity duration-500">
                 {{ message }}
             </div>
+            <script>
+                setTimeout(function () {
+                    var el = document.getElementById('flash-msg');
+                    if (el) { el.style.opacity = '0'; setTimeout(function () { el.remove(); }, 500); }
+                }, 3000);
+            </script>
+            {% endif %}
             {% endfor %}
             {% endif %}
             {% endwith %}
 
-            <div id="dashboard-section">
-                <header class="mb-10">
-                    <h1 class="text-2xl font-black font-outfit text-white">Academic Overview</h1>
-                    <p class="text-gray-500 text-sm mt-1">Manage slots and performance</p>
-                </header>
+            <form action="/student" method="POST" enctype="multipart/form-data" id="student-form">
 
-                <form action="/student" method="POST" enctype="multipart/form-data" class="space-y-8">
-                    <div class="glass p-8">
-                        <div class="flex justify-between items-center mb-6">
-                            <h2 class="font-bold text-white uppercase tracking-widest text-xs">Manage Slots</h2>
-                            <button type="button" onclick="addSlot()"
-                                class="text-xs text-blue-400 font-bold hover:underline">+ Add New Slot</button>
+                <!-- 1. DASHBOARD SECTION -->
+                <div id="dashboard-section">
+                    <header class="flex justify-between items-center mb-10">
+                        <div>
+                            <h1 class="text-2xl font-black font-outfit text-white">Mentee Portfolio</h1>
+                            <p class="text-gray-500 text-sm mt-1 uppercase tracking-widest text-[10px] font-bold">
+                                Academic Progress & Information System
+                            </p>
                         </div>
-                        <div id="slots-container" class="space-y-4">
-                            {% for slot in slots %}
-                            <div class="flex items-center space-x-4 bg-white/5 p-4 rounded-xl border border-white/5"
-                                id="slot-row-{{ loop.index0 }}">
-                                <input type="text" name="slot_names[]" value="{{ slot }}"
-                                    class="premium-input bg-[#0d1117] flex-1">
-                                <button type="button" onclick="removeSlot({{ loop.index0 }})"
-                                    class="text-red-500 hover:text-red-400"><i data-lucide="trash-2"
-                                        class="w-4 h-4"></i></button>
+                        <a href="/logout"
+                            class="glass border border-white/10 !py-2 !px-6 flex items-center space-x-2 text-sm rounded-xl hover:bg-white/5 transition">
+                            <i data-lucide="log-out" class="w-4 h-4"></i>
+                            <span>Logout</span>
+                        </a>
+                    </header>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+                        <!-- Profile Card -->
+                        <div class="glass p-8 flex flex-col items-center text-center">
+                            <div class="relative group mb-6">
+                                <div
+                                    class="w-32 h-32 rounded-full overflow-hidden border-4 border-white/10 group-hover:border-purple-500/50 transition">
+                                    <img src="{{ student.photo_path or 'https://via.placeholder.com/150' }}"
+                                        id="photo-preview" class="w-full h-full object-cover">
+                                </div>
+                                <label for="photo-upload"
+                                    class="absolute bottom-0 right-0 bg-purple-600 p-2.5 rounded-full cursor-pointer hover:bg-purple-500 transition border border-white/20 shadow-lg">
+                                    <i data-lucide="camera" class="w-4 h-4 text-white"></i>
+                                    <input type="file" id="photo-upload" name="photo" class="hidden" accept="image/*"
+                                        onchange="previewImage(this)">
+                                </label>
+                            </div>
+                            <h2 class="text-xl font-bold font-outfit text-white mb-1">{{ student.name or
+                                session['user'] }}</h2>
+                            <p class="text-xs text-purple-400 font-mono mb-4">{{ student.reg_num }}</p>
+                            <div class="w-full pt-4 border-t border-white/10">
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2 text-left">Full
+                                    Name</label>
+                                <input type="text" name="name" value="{{ student.name or '' }}"
+                                    class="premium-input bg-[#0d1117] text-sm" placeholder="Enter Full Name">
+                            </div>
+                        </div>
+
+                        <!-- Course & Details Form -->
+                        <div class="glass p-8 lg:col-span-2 space-y-6">
+                            <h3 class="text-lg font-bold font-outfit text-white border-b border-white/10 pb-4">General
+                                Profile Information</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Branch/Dept
+                                        Course</label>
+                                    <input type="text" name="course" value="{{ student.course or '' }}"
+                                        class="premium-input bg-[#0d1117]" placeholder="e.g. B.Tech Computer Science">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Registered
+                                        New Course</label>
+                                    <input type="text" name="registered_new_course"
+                                        value="{{ student.registered_new_course or '' }}"
+                                        class="premium-input bg-[#0d1117]" placeholder="e.g. Python Certification">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Online Course /
+                                    Certifications</label>
+                                <input type="text" name="online_course" value="{{ student.online_course or '' }}"
+                                    class="premium-input bg-[#0d1117]"
+                                    placeholder="e.g. NPTEL / Coursera Machine Learning">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Event
+                                    Participation</label>
+                                <textarea name="event_participation" class="premium-input bg-[#0d1117]" rows="2"
+                                    placeholder="List hackathons, workshops, or sports events participated in">{{ student.event_participation or '' }}</textarea>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Mentor
+                                    Observation Notes</label>
+                                <textarea name="description" class="premium-input bg-[#0d1117]" rows="2"
+                                    placeholder="Enter additional remarks or observations">{{ student.additional_description or '' }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Course Slots Header & Actions -->
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h3 class="text-xl font-black font-outfit text-white">Course Slots & Academic Marks</h3>
+                            <p class="text-xs text-gray-500 mt-1">Manage attendance, model, test marks and course names
+                                per slot</p>
+                        </div>
+                        <button type="button" onclick="addSlotCard()" class="btn-primary !py-2 !px-4 text-xs font-bold">
+                            + Add New Slot
+                        </button>
+                    </div>
+
+                    <!-- Dynamic Slots Container -->
+                    <div id="slots-container" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                        {% set slot_list = slots if slots else ['Slot A'] %}
+                        {% for slot in slot_list %}
+                        {% set s_marks = marks.get(slot, {}) %}
+                        {% set s_att = attendance.get(slot, 0) %}
+                        <div
+                            class="glass p-6 border border-white/10 relative slot-card transition hover:border-purple-500/30">
+                            <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
+                                <div class="flex items-center space-x-2">
+                                    <i data-lucide="book-open" class="w-4 h-4 text-purple-400"></i>
+                                    <input type="text" name="slot_names[]" value="{{ slot }}"
+                                        class="bg-transparent font-bold text-white text-base focus:outline-none border-b border-purple-500/50 focus:border-purple-400 w-32"
+                                        placeholder="Slot Name (e.g. Slot A)" required>
+                                </div>
+                                <button type="button" onclick="removeSlotCard(this)"
+                                    class="text-red-400 hover:text-red-300 p-1 text-xs font-bold">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Course
+                                        Name</label>
+                                    <input type="text" name="course_{{ slot }}" value="{{ s_marks.get('course', '') }}"
+                                        class="premium-input bg-[#0d1117] text-xs"
+                                        placeholder="e.g. CSA0708 - Computer Networks">
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label
+                                            class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Attendance
+                                            (%)</label>
+                                        <input type="number" name="att_{{ slot }}" value="{{ s_att }}" min="0" max="100"
+                                            class="premium-input bg-[#0d1117] text-xs font-bold text-blue-400"
+                                            placeholder="85">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Total
+                                            Marks</label>
+                                        <input type="text" name="total_marks_{{ slot }}"
+                                            value="{{ s_marks.get('total_marks', '20') }}"
+                                            class="premium-input bg-[#0d1117] text-xs" placeholder="20">
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-4 gap-2 pt-2 border-t border-white/5">
+                                    <div>
+                                        <label
+                                            class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Model</label>
+                                        <input type="text" name="model_{{ slot }}"
+                                            value="{{ s_marks.get('model', '-') }}"
+                                            class="premium-input bg-[#0d1117] text-xs text-center" placeholder="-">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Test
+                                            1</label>
+                                        <input type="text" name="test1_{{ slot }}"
+                                            value="{{ s_marks.get('test1', '-') }}"
+                                            class="premium-input bg-[#0d1117] text-xs text-center" placeholder="-">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Test
+                                            2</label>
+                                        <input type="text" name="test2_{{ slot }}"
+                                            value="{{ s_marks.get('test2', '-') }}"
+                                            class="premium-input bg-[#0d1117] text-xs text-center" placeholder="-">
+                                    </div>
+                                    <div>
+                                        <label
+                                            class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Average</label>
+                                        <input type="text" name="avg_{{ slot }}" value="{{ s_marks.get('avg', '-') }}"
+                                            class="premium-input bg-[#0d1117] text-xs text-center font-bold text-emerald-400"
+                                            placeholder="-">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Floating Submit Bar -->
+                    <div
+                        class="sticky bottom-6 glass p-4 rounded-2xl flex justify-between items-center border border-purple-500/20 shadow-2xl backdrop-blur-xl">
+                        <span class="text-xs text-gray-400 font-medium">Save all edits to update your mentee
+                            report</span>
+                        <button type="submit" class="btn-primary !py-3 !px-8 text-sm font-bold">
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2. ACADEMIC PROFILE SECTION -->
+                <div id="academic-section" class="hidden">
+                    <header class="mb-10">
+                        <h1 class="text-2xl font-black font-outfit text-white">Academic Record</h1>
+                        <p class="text-gray-500 text-sm mt-1 uppercase tracking-widest text-[10px] font-bold">
+                            Read-Only Summary</p>
+                    </header>
+                    <div class="glass p-8 max-w-2xl space-y-4">
+                        <div class="flex justify-between border-b border-white/10 pb-3">
+                            <span class="text-gray-400 text-sm">Registration Number</span>
+                            <span class="text-white font-mono font-bold">{{ student.reg_num }}</span>
+                        </div>
+                        <div class="flex justify-between border-b border-white/10 pb-3">
+                            <span class="text-gray-400 text-sm">Full Name</span>
+                            <span class="text-white font-bold">{{ student.name or 'Not set' }}</span>
+                        </div>
+                        <div class="flex justify-between border-b border-white/10 pb-3">
+                            <span class="text-gray-400 text-sm">Branch / Course</span>
+                            <span class="text-white font-bold">{{ student.course or 'Not set' }}</span>
+                        </div>
+                        <div class="flex justify-between border-b border-white/10 pb-3">
+                            <span class="text-gray-400 text-sm">Registered New Course</span>
+                            <span class="text-white">{{ student.registered_new_course or 'None' }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400 text-sm">Online Certifications</span>
+                            <span class="text-white">{{ student.online_course or 'None' }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. MY RESULTS SECTION -->
+                <div id="results-section" class="hidden">
+                    <header class="mb-10 flex justify-between items-center">
+                        <div>
+                            <h1 class="text-2xl font-black font-outfit text-white">My Results</h1>
+                            <p class="text-gray-500 text-sm mt-1 uppercase tracking-widest text-[10px] font-bold">
+                                Subject-wise Grade Records
+                            </p>
+                        </div>
+                        <button type="button" onclick="addResultRow()"
+                            class="btn-primary !py-2 !px-4 text-xs font-bold flex items-center space-x-1">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            <span>Add Subject</span>
+                        </button>
+                    </header>
+
+                    <div class="glass p-8 max-w-2xl">
+                        <p class="text-xs text-gray-400 mb-6">
+                            Add your subject grades below. When your mentor turns <strong class="text-purple-400">PPT:
+                                Grades ON</strong>, these grades will be displayed in Slide 2 of your PPT report instead
+                            of course/event participation details.
+                        </p>
+
+                        <div id="results-container" class="space-y-3 mb-6">
+                            {% set result_list = results if results else [] %}
+                            {% for r in result_list %}
+                            <div
+                                class="result-row grid grid-cols-12 gap-3 items-center bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div class="col-span-7">
+                                    <label class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Subject
+                                        Name</label>
+                                    <input type="text" name="result_subject[]" value="{{ r.subject }}"
+                                        placeholder="e.g. Mathematics" class="premium-input bg-[#0d1117] text-xs">
+                                </div>
+                                <div class="col-span-4">
+                                    <label class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Grade /
+                                        Marks</label>
+                                    <input type="text" name="result_grade[]" value="{{ r.grade }}"
+                                        placeholder="e.g. A+ or 92%" class="premium-input bg-[#0d1117] text-xs">
+                                </div>
+                                <div class="col-span-1 flex justify-end pt-4">
+                                    <button type="button" onclick="removeResultRow(this)"
+                                        class="text-red-400 hover:text-red-300">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
                             </div>
                             {% endfor %}
                         </div>
-                    </div>
 
-                    <div class="glass p-8">
-                        <div class="grid grid-cols-2 gap-6 mb-8">
-                            <div class="col-span-2">
-                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Subject
-                                    Details</label>
-                                <input type="text" name="course" value="{{ student.course or '' }}"
-                                    class="premium-input bg-[#0d1117]" placeholder="e.g. CSA0708 - Computer Networks">
-                            </div>
+                        {% if not result_list %}
+                        <div id="no-results-msg" class="text-center py-8 text-gray-500 text-xs italic">
+                            No subject results added yet. Click "+ Add Subject" above to add your grades.
                         </div>
+                        {% endif %}
 
-                        <div id="dynamic-inputs-container" class="space-y-12">
-                            <!-- JS will populate attendance and marks here based on slots -->
-                        </div>
-                        <div class="mt-10 flex justify-end">
-                            <button type="submit" class="btn-primary px-10">Save Academic Data</button>
+                        <div class="flex justify-end pt-4 border-t border-white/10">
+                            <button type="submit" class="btn-primary !py-3 !px-8 text-sm font-bold">
+                                Save Results
+                            </button>
                         </div>
                     </div>
-                </form>
-            </div>
-
-            <div id="details-section" class="hidden">
-                <header class="mb-10">
-                    <h1 class="text-2xl font-black font-outfit text-white">My Details</h1>
-                    <p class="text-gray-500 text-sm mt-1">Update academic and activity records</p>
-                </header>
-
-                <form action="/student" method="POST" enctype="multipart/form-data" class="space-y-8">
-                    <div class="glass p-8">
-                        <h3 class="text-sm font-bold text-white mb-6 uppercase tracking-wider">Other Details</h3>
-                        <div class="grid grid-cols-2 gap-4 mb-6">
-                            <div>
-                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Registered New
-                                    Course</label>
-                                <input type="text" name="registered_new_course"
-                                    value="{{ student.registered_new_course or '' }}" class="premium-input text-xs">
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Online/Other
-                                    Course</label>
-                                <input type="text" name="online_course" value="{{ student.online_course or '' }}"
-                                    class="premium-input text-xs">
-                            </div>
-                        </div>
-                        <div class="mb-6">
-                            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Event
-                                Participation</label>
-                            <textarea name="event_participation" rows="2"
-                                class="premium-input text-xs">{{ student.event_participation or '' }}</textarea>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Additional
-                                Description</label>
-                            <textarea name="description" rows="3"
-                                class="premium-input text-xs">{{ student.additional_description or '' }}</textarea>
-                        </div>
-
-                        <div class="mt-10 flex justify-end">
-                            <button type="submit" class="btn-primary px-10">Save Details</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-
-            <div id="profile-section" class="hidden">
-                <header class="mb-10">
-                    <h1 class="text-2xl font-black font-outfit text-white">Profile</h1>
-                    <p class="text-gray-500 text-sm mt-1">Update your photo and personal details</p>
-                </header>
-
-                <form action="/student" method="POST" enctype="multipart/form-data" class="space-y-8">
-                    <div class="glass p-8">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-                            <div class="md:col-span-1">
-                                <div
-                                    class="w-32 h-32 rounded-2xl border border-white/10 overflow-hidden bg-black mx-auto">
-                                    <img src="{{ student.photo_path or 'https://via.placeholder.com/128' }}"
-                                        id="profile-photo-preview" class="w-full h-full object-cover">
-                                </div>
-                            </div>
-                            <div class="md:col-span-2 space-y-4">
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Full
-                                        Name</label>
-                                    <input type="text" name="name" value="{{ student.name or '' }}"
-                                        class="premium-input text-xs">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-2">Profile
-                                        Photo</label>
-                                    <input type="file" name="photo" id="profile-photo-input"
-                                        class="premium-input text-xs">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="mt-10 flex justify-end">
-                            <button type="submit" class="btn-primary px-10">Save Profile</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-
-            <div id="security-section" class="hidden">
-                <header class="mb-10">
-                    <h1 class="text-2xl font-black font-outfit text-white">Security Settings</h1>
-                    <p class="text-gray-500 text-sm mt-1">Manage your password</p>
-                </header>
-                <div class="glass p-8 max-w-md">
-                    <form action="/change_password" method="POST" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-2">Current Password</label>
-                            <input type="password" name="current_password" required class="premium-input">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 mb-2">New Password</label>
-                            <input type="password" name="new_password" required class="premium-input">
-                        </div>
-                        <button type="submit" class="w-full btn-primary mt-4">Update Password</button>
-                    </form>
                 </div>
-            </div>
+
+                <!-- 4. SECURITY SECTION -->
+                <div id="security-section" class="hidden">
+                    <header class="mb-10">
+                        <h1 class="text-2xl font-black font-outfit text-white">Account Security</h1>
+                        <p class="text-gray-500 text-sm mt-1 uppercase tracking-widest text-[10px] font-bold">
+                            Change Password</p>
+                    </header>
+                    <div class="glass p-8 max-w-md">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 mb-2">Current Password</label>
+                                <input type="password" name="current_password" class="premium-input">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 mb-2">New Password</label>
+                                <input type="password" name="new_password" class="premium-input">
+                            </div>
+                            <button type="submit" class="w-full btn-primary mt-4">Update Password</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
         </main>
     </div>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script>
         lucide.createIcons();
 
-        let slots = {{ slots | tojson | safe }} || [];
-        let attData = {{ attendance | tojson | safe }} || {};
-        let marksData = {{ marks | tojson | safe }} || {};
-
-        function renderDynamicFields() {
-            const container = document.getElementById('dynamic-inputs-container');
-            if (!container) return;
-            container.innerHTML = '';
-
-            slots.forEach(slot => {
-                const sMarks = marksData[slot] || { total_marks: '', model: '', test1: '', test2: '', avg: '', course: '' };
-                const sAtt = attData[slot] || 0;
-
-                const section = document.createElement('div');
-                section.className = 'slot-entry space-y-6 animate-in fade-in duration-500';
-                section.innerHTML = `
-                    <div class="border-l-2 border-purple-500 pl-4 mt-8">
-                        <h3 class="text-white font-bold">${slot} Performance</h3>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-4">Attendance (%)</label>
-                            <div class="bg-black/40 border border-white/5 p-4 rounded-xl">
-                                <input type="number" name="att_${slot}" value="${sAtt}" class="w-full bg-transparent text-2xl font-bold font-outfit text-white focus:outline-none">
-                            </div>
-                        </div>
-                        <div>
-                            <div class="flex justify-between items-center mb-4">
-                                <label class="block text-[10px] font-bold text-gray-500 uppercase">Marks</label>
-                                <div class="flex items-center space-x-2">
-                                    <span class="text-[10px] text-gray-400 uppercase">Course:</span>
-                                    <input type="text" name="course_${slot}" value="${sMarks.course || ''}" class="bg-[#0d1117] text-xs font-bold text-white px-2 py-1 rounded border border-white/10 focus:outline-none w-48">
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-5 gap-2">
-                                <div class="bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
-                                    <p class="text-[8px] text-blue-400 uppercase mb-1">Total Marks</p>
-                                    <input type="text" name="total_marks_${slot}" value="${sMarks.total_marks || ''}" class="w-full bg-transparent font-bold text-sm text-blue-400 focus:outline-none">
-                                </div>
-                                <div class="bg-black/40 p-3 rounded-lg border border-white/5">
-                                    <p class="text-[8px] text-gray-400 uppercase mb-1">Model</p>
-                                    <input type="text" name="model_${slot}" value="${sMarks.model || ''}" class="w-full bg-transparent font-bold text-sm text-white focus:outline-none">
-                                </div>
-                                <div class="bg-black/40 p-3 rounded-lg border border-white/5">
-                                    <p class="text-[8px] text-gray-400 uppercase mb-1">Test 1</p>
-                                    <input type="text" name="test1_${slot}" value="${sMarks.test1 || ''}" class="w-full bg-transparent font-bold text-sm text-white focus:outline-none">
-                                </div>
-                                <div class="bg-black/40 p-3 rounded-lg border border-white/5">
-                                    <p class="text-[8px] text-gray-400 uppercase mb-1">Test 2</p>
-                                    <input type="text" name="test2_${slot}" value="${sMarks.test2 || ''}" class="w-full bg-transparent font-bold text-sm text-white focus:outline-none">
-                                </div>
-                                <div class="bg-purple-500/10 p-3 rounded-lg border border-purple-500/20">
-                                    <p class="text-[8px] text-purple-400 uppercase mb-1">Avg</p>
-                                    <input type="text" name="avg_${slot}" value="${sMarks.avg || ''}" class="w-full bg-transparent font-bold text-sm text-white focus:outline-none">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(section);
-            });
-        }
-
-        function addSlot() {
-            const overlay = document.getElementById('slot-modal-overlay');
-            const input = document.getElementById('slot-modal-input');
-            const courseInput = document.getElementById('slot-modal-course-input');
-            input.value = '';
-            if (courseInput) courseInput.value = '';
-            overlay.classList.add('active');
-            setTimeout(() => input.focus(), 100);
-        }
-
-        function closeSlotModal() {
-            document.getElementById('slot-modal-overlay').classList.remove('active');
-            document.getElementById('slot-modal-error').classList.add('hidden');
-        }
-
-        function confirmAddSlot() {
-            const input = document.getElementById('slot-modal-input');
-            const courseInput = document.getElementById('slot-modal-course-input');
-            const errorMsg = document.getElementById('slot-modal-error');
-            const name = input.value.trim();
-            const courseName = courseInput.value.trim();
-            if (!name) return;
-
-            const currentInputs = document.querySelectorAll('input[name="slot_names[]"]');
-            slots = Array.from(currentInputs).map(i => i.value.trim());
-
-            if (!slots.includes(name)) {
-                slots.push(name);
-                if (!marksData[name]) marksData[name] = {};
-                marksData[name].course = courseName;
-
-                updateSlotList();
-                renderDynamicFields();
-                closeSlotModal();
-                errorMsg.classList.add('hidden');
-            } else {
-                errorMsg.classList.remove('hidden');
-            }
-        }
-
-        function removeSlot(index) {
-            slots.splice(index, 1);
-            updateSlotList();
-            renderDynamicFields();
-        }
-
-        function updateSlotList() {
-            const container = document.getElementById('slots-container');
-            if (!container) return;
-            container.innerHTML = slots.map((s, i) => `
-                <div class="flex items-center space-x-4 bg-white/5 p-4 rounded-xl border border-white/5" id="slot-row-${i}">
-                    <input type="text" name="slot_names[]" value="${s}" readonly class="premium-input bg-[#0d1117] flex-1 border-none cursor-default focus:outline-none">
-                    <button type="button" onclick="removeSlot(${i})" class="text-red-500 hover:text-red-400 flex items-center space-x-1">
-                        <i data-lucide="trash-2" class="w-3 h-3"></i>
-                        <span class="text-[10px] font-bold">REMOVE</span>
-                    </button>
-                </div>
-            `).join('');
-            lucide.createIcons();
-        }
-
         function showSection(id) {
             document.getElementById('dashboard-section').classList.add('hidden');
-            document.getElementById('details-section').classList.add('hidden');
-            document.getElementById('profile-section').classList.add('hidden');
+            document.getElementById('academic-section').classList.add('hidden');
+            document.getElementById('results-section').classList.add('hidden');
             document.getElementById('security-section').classList.add('hidden');
             document.getElementById(id + '-section').classList.remove('hidden');
 
-            document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-            const activeItem = document.querySelector(`[onclick="showSection('${id}')"]`);
-            if (activeItem) activeItem.classList.add('active');
+            document.querySelectorAll('nav a').forEach(a => a.classList.remove('active-icon'));
+            const activeLink = document.querySelector(`[onclick="showSection('${id}')"]`);
+            if (activeLink) activeLink.classList.add('active-icon');
         }
 
-        document.addEventListener('DOMContentLoaded', renderDynamicFields);
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    document.getElementById('photo-preview').src = e.target.result;
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
 
-        // Mobile sidebar toggle
+        function addSlotCard() {
+            const container = document.getElementById('slots-container');
+            const slotCount = container.children.length + 1;
+            const slotName = `Slot ${String.fromCharCode(64 + slotCount)}`;
+
+            const card = document.createElement('div');
+            card.className = 'glass p-6 border border-white/10 relative slot-card transition hover:border-purple-500/30';
+            card.innerHTML = `
+                <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="book-open" class="w-4 h-4 text-purple-400"></i>
+                        <input type="text" name="slot_names[]" value="${slotName}" class="bg-transparent font-bold text-white text-base focus:outline-none border-b border-purple-500/50 focus:border-purple-400 w-32" placeholder="Slot Name" required>
+                    </div>
+                    <button type="button" onclick="removeSlotCard(this)" class="text-red-400 hover:text-red-300 p-1 text-xs font-bold">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Course Name</label>
+                        <input type="text" name="course_${slotName}" class="premium-input bg-[#0d1117] text-xs" placeholder="e.g. CSA0708 - Computer Networks">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Attendance (%)</label>
+                            <input type="number" name="att_${slotName}" value="0" min="0" max="100" class="premium-input bg-[#0d1117] text-xs font-bold text-blue-400" placeholder="85">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Total Marks</label>
+                            <input type="text" name="total_marks_${slotName}" value="20" class="premium-input bg-[#0d1117] text-xs" placeholder="20">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-2 pt-2 border-t border-white/5">
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Model</label>
+                            <input type="text" name="model_${slotName}" value="-" class="premium-input bg-[#0d1117] text-xs text-center" placeholder="-">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Test 1</label>
+                            <input type="text" name="test1_${slotName}" value="-" class="premium-input bg-[#0d1117] text-xs text-center" placeholder="-">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Test 2</label>
+                            <input type="text" name="test2_${slotName}" value="-" class="premium-input bg-[#0d1117] text-xs text-center" placeholder="-">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Average</label>
+                            <input type="text" name="avg_${slotName}" value="-" class="premium-input bg-[#0d1117] text-xs text-center font-bold text-emerald-400" placeholder="-">
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+            lucide.createIcons();
+        }
+
+        function removeSlotCard(btn) {
+            const container = document.getElementById('slots-container');
+            if (container.children.length > 1) {
+                btn.closest('.slot-card').remove();
+            } else {
+                alert('At least one slot must remain.');
+            }
+        }
+
+        function addResultRow() {
+            const container = document.getElementById('results-container');
+            const noMsg = document.getElementById('no-results-msg');
+            if (noMsg) noMsg.style.display = 'none';
+
+            const row = document.createElement('div');
+            row.className = 'result-row grid grid-cols-12 gap-3 items-center bg-white/5 p-3 rounded-xl border border-white/5';
+            row.innerHTML = `
+                <div class="col-span-7">
+                    <label class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Subject Name</label>
+                    <input type="text" name="result_subject[]" value="" placeholder="e.g. Mathematics" class="premium-input bg-[#0d1117] text-xs">
+                </div>
+                <div class="col-span-4">
+                    <label class="block text-[9px] font-bold text-gray-500 uppercase mb-1">Grade / Marks</label>
+                    <input type="text" name="result_grade[]" value="" placeholder="e.g. A+ or 92%" class="premium-input bg-[#0d1117] text-xs">
+                </div>
+                <div class="col-span-1 flex justify-end pt-4">
+                    <button type="button" onclick="removeResultRow(this)" class="text-red-400 hover:text-red-300">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(row);
+            lucide.createIcons();
+        }
+
+        function removeResultRow(btn) {
+            btn.closest('.result-row').remove();
+        }
+
         function toggleMobileSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebar-overlay');
@@ -419,19 +515,17 @@
             overlay.classList.toggle('active');
         }
 
-        // Close sidebar when a menu item is clicked (mobile)
-        document.querySelectorAll('.menu-item').forEach(item => {
+        document.querySelectorAll('nav a').forEach(item => {
             item.addEventListener('click', () => {
                 if (window.innerWidth <= 768) {
-                    toggleMobileSidebar();
+                    const sidebar = document.getElementById('sidebar');
+                    const overlay = document.getElementById('sidebar-overlay');
+                    if (sidebar.classList.contains('mobile-open')) {
+                        sidebar.classList.remove('mobile-open');
+                        overlay.classList.remove('active');
+                    }
                 }
             });
-        });
-
-        // Enter key support for slot modal
-        document.getElementById('slot-modal-input').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') confirmAddSlot();
-            if (e.key === 'Escape') closeSlotModal();
         });
     </script>
 </body>

@@ -28,6 +28,12 @@
                 <a href="#home" onclick="showSection('home')"
                     class="p-3 bg-white/5 rounded-xl border border-white/10 text-purple-400 block active-icon"><i
                         data-lucide="home" class="w-5 h-5"></i></a>
+                <a href="#advisory" onclick="showSection('advisory')"
+                    class="p-3 text-gray-600 block hover:text-white transition"><i data-lucide="megaphone"
+                        class="w-5 h-5"></i></a>
+                <a href="#observations" onclick="showSection('observations')"
+                    class="p-3 text-gray-600 block hover:text-white transition"><i data-lucide="message-square"
+                        class="w-5 h-5"></i></a>
                 <a href="#security" onclick="showSection('security')"
                     class="p-3 text-gray-600 block hover:text-white transition"><i data-lucide="key"
                         class="w-5 h-5"></i></a>
@@ -58,6 +64,17 @@
                             <i data-lucide="user-plus" class="w-4 h-4"></i>
                             <span>Add Student</span>
                         </button>
+                        <!-- PPT Grade Toggle -->
+                        <form action="/toggle_grade_ppt" method="POST" style="display:inline;">
+                            <button type="submit"
+                                class="{% if show_grades_in_ppt %}btn-primary !py-2 !px-6 flex items-center space-x-2 text-sm rounded-xl !bg-purple-600 hover:!bg-purple-500{% else %}glass border border-white/10 !py-2 !px-6 flex items-center space-x-2 text-sm rounded-xl hover:bg-white/5 transition{% endif %}">
+                                <i data-lucide="{% if show_grades_in_ppt %}trophy{% else %}file-text{% endif %}"
+                                    class="w-4 h-4"></i>
+                                <span class="hidden md:inline">PPT: {% if show_grades_in_ppt %}<span
+                                        class="text-yellow-300 font-black">Grades ON</span>{% else %}Grades OFF{% endif
+                                    %}</span>
+                            </button>
+                        </form>
                         <a href="/generate_report"
                             class="btn-primary !py-2 !px-6 flex items-center space-x-2 text-sm rounded-xl">
                             <i data-lucide="file-output" class="w-4 h-4"></i>
@@ -141,6 +158,30 @@
                                 <textarea name="description" id="edit-modal-description"
                                     class="premium-input bg-[#0d1117]" rows="3"></textarea>
                             </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-emerald-400 uppercase mb-2">Individual
+                                    Institutional Advisory (PPT Slide 2 Notice Override)</label>
+                                <textarea name="custom_advisory" id="edit-modal-custom-advisory"
+                                    class="premium-input bg-[#0d1117] border border-emerald-500/30" rows="3"
+                                    placeholder="Leave empty to use Global Institutional Advisory"></textarea>
+                            </div>
+                            <div class="border-t border-white/10 pt-4">
+                                <div class="flex justify-between items-center mb-3">
+                                    <label class="block text-[10px] font-bold text-purple-400 uppercase">Subject
+                                        Results</label>
+                                    <button type="button" onclick="addFacultyResultRow()"
+                                        class="text-[10px] text-blue-400 font-bold hover:underline">+ Add
+                                        Subject</button>
+                                </div>
+                                <div class="grid grid-cols-12 gap-2 mb-2 px-1">
+                                    <div class="col-span-7"><span
+                                            class="text-[9px] font-bold text-gray-600 uppercase">Subject</span></div>
+                                    <div class="col-span-3"><span
+                                            class="text-[9px] font-bold text-gray-600 uppercase">Grade</span></div>
+                                    <div class="col-span-2"></div>
+                                </div>
+                                <div id="faculty-results-container" class="space-y-2"></div>
+                            </div>
                             <div class="flex space-x-3 pt-4">
                                 <button type="button"
                                     onclick="document.getElementById('edit-faculty-student-modal').classList.add('hidden')"
@@ -185,7 +226,6 @@
                         </form>
                     </div>
                 </div>
-
                 <!-- Stats Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
                     <div class="glass p-6 flex items-center space-x-4">
@@ -282,6 +322,14 @@
                                                 <img src="{{ s.photo_path or 'https://via.placeholder.com/40' }}"
                                                     class="w-full h-full object-cover">
                                             </div>
+                                            {% if s.last_updated %}
+                                            <p class="text-[8px] text-gray-400 mt-1 whitespace-nowrap">{{
+                                                s.last_updated.strftime('%d-%b-%Y') }}</p>
+                                            <p class="text-[8px] text-emerald-400 whitespace-nowrap">{{
+                                                s.last_updated.strftime('%I:%M %p') }}</p>
+                                            {% else %}
+                                            <p class="text-[8px] text-gray-500 mt-1 italic">No update</p>
+                                            {% endif %}
                                         </td>
                                         <td onclick="event.stopPropagation()">
                                             <div class="flex flex-col gap-2">
@@ -351,6 +399,72 @@
                     </form>
                 </div>
             </div>
+            <div id="advisory-section" class="hidden">
+                <header class="mb-10">
+                    <h1 class="text-2xl font-black font-outfit text-white">Institutional Advisories</h1>
+                    <p class="text-gray-500 text-sm mt-1 uppercase tracking-widest text-[10px] font-bold">Manage Global
+                        Notices</p>
+                </header>
+                <div class="glass p-6 border border-emerald-500/20 bg-emerald-500/5 rounded-2xl">
+                    <div class="flex items-center space-x-3 mb-3">
+                        <div
+                            class="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
+                            <i data-lucide="megaphone" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-black font-outfit text-white">Global Institutional Advisory</h2>
+                            <p class="text-xs text-emerald-400 font-medium">This text will be included in Slide 2 of the
+                                PPT report for ALL students (unless customized individually).</p>
+                        </div>
+                    </div>
+                    <form action="/update_global_advisory" method="POST" class="space-y-4">
+                        <textarea name="global_advisory" rows="4" required
+                            class="premium-input bg-[#0d1117] border border-emerald-500/30 text-white font-medium text-lg leading-relaxed"
+                            placeholder="Enter institutional notice for all students...">{{ global_advisory }}</textarea>
+                        <div class="flex justify-end mt-4">
+                            <button type="submit"
+                                class="btn-primary !py-3 !px-8 text-md rounded-xl !bg-emerald-600 hover:!bg-emerald-500 flex items-center space-x-2">
+                                <i data-lucide="save" class="w-5 h-5"></i>
+                                <span>Save Global Advisory</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="observations-section" class="hidden">
+                <header class="mb-10">
+                    <h1 class="text-2xl font-black font-outfit text-white">Global Mentor Observations</h1>
+                    <p class="text-gray-500 text-sm mt-1 uppercase tracking-widest text-[10px] font-bold">Default
+                        observation text for all students</p>
+                </header>
+                <div class="glass p-6 border border-purple-500/20 bg-purple-500/5 rounded-2xl">
+                    <div class="flex items-center space-x-3 mb-3">
+                        <div
+                            class="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-400">
+                            <i data-lucide="message-square" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-black font-outfit text-white">Global Mentor Observation</h2>
+                            <p class="text-xs text-purple-400 font-medium">This text will appear in Slide 2 of the PPT
+                                for ALL students who don't have a custom individual observation set.</p>
+                        </div>
+                    </div>
+                    <form action="/update_global_observation" method="POST" class="space-y-4">
+                        <textarea name="global_observation" rows="4" required
+                            class="premium-input bg-[#0d1117] border border-purple-500/30 text-white font-medium text-lg leading-relaxed"
+                            placeholder="Enter default mentor observation for all students...">{{ global_observation }}</textarea>
+                        <div class="flex justify-end mt-4">
+                            <button type="submit"
+                                class="btn-primary !py-3 !px-8 text-md rounded-xl !bg-purple-600 hover:!bg-purple-500 flex items-center space-x-2">
+                                <i data-lucide="save" class="w-5 h-5"></i>
+                                <span>Save Global Observation</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
         </main>
     </div>
 
@@ -383,6 +497,8 @@
 
         function showSection(id) {
             document.getElementById('home-section').classList.add('hidden');
+            document.getElementById('advisory-section').classList.add('hidden');
+            document.getElementById('observations-section').classList.add('hidden');
             document.getElementById('security-section').classList.add('hidden');
             document.getElementById(id + '-section').classList.remove('hidden');
 
@@ -401,15 +517,55 @@
             document.getElementById('edit-modal-online-course').value = s.online_course || '';
             document.getElementById('edit-modal-events').value = s.event_participation || '';
             document.getElementById('edit-modal-description').value = s.additional_description || '';
+            document.getElementById('edit-modal-custom-advisory').value = s.custom_advisory || '';
 
             document.getElementById('edit-faculty-student-form').action = '/edit_student_faculty/' + encodeURIComponent(regNum);
+
+            // Populate results
+            const container = document.getElementById('faculty-results-container');
+            container.innerHTML = '';
+            try {
+                const results = JSON.parse(s.results_data || '[]');
+                results.forEach(r => {
+                    container.appendChild(buildFacultyResultRow(r.subject || '', r.grade || ''));
+                });
+            } catch (e) { }
 
             document.getElementById('edit-faculty-student-modal').classList.remove('hidden');
         }
 
+        function buildFacultyResultRow(subject, grade) {
+            const row = document.createElement('div');
+            row.className = 'faculty-result-row grid grid-cols-12 gap-2 items-center bg-white/5 p-2 rounded-xl border border-white/5';
+            row.innerHTML = `
+                <div class="col-span-7">
+                    <input type="text" name="result_subject[]" value="${subject}" placeholder="e.g. Mathematics"
+                        class="premium-input bg-[#0d1117] text-xs w-full">
+                </div>
+                <div class="col-span-3">
+                    <input type="text" name="result_grade[]" value="${grade}" placeholder="e.g. A+"
+                        class="premium-input bg-[#0d1117] text-xs w-full">
+                </div>
+                <div class="col-span-2 flex justify-end">
+                    <button type="button" onclick="removeFacultyResultRow(this)" class="text-red-500 hover:text-red-400">
+                        <i data-lucide="trash-2" class="w-3 h-3"></i>
+                    </button>
+                </div>
+            `;
+            return row;
+        }
+
+        function addFacultyResultRow() {
+            const container = document.getElementById('faculty-results-container');
+            container.appendChild(buildFacultyResultRow('', ''));
+            lucide.createIcons();
+        }
+
+        function removeFacultyResultRow(btn) {
+            btn.closest('.faculty-result-row').remove();
+        }
+
         function showStudentDetails(regNum) {
-            // Find student from JSON data
-            // Since students is a list of dicts, we can find it
             const s = studentsData.find(std => String(std.reg_num) === String(regNum));
             if (!s) return;
 
@@ -422,6 +578,10 @@
                         </div>
                         <h3 class="text-xl font-black font-outfit">${s.name}</h3>
                         <p class="text-blue-400 text-xs font-bold uppercase tracking-widest">${s.reg_num}</p>
+                        <div class="mt-4 p-3 bg-white/5 rounded-xl border border-white/10">
+                            <p class="text-[9px] uppercase tracking-wider text-gray-400 font-bold">Last Updated</p>
+                            <p class="text-xs font-semibold text-emerald-400 mt-1">${s.last_updated || 'N/A'}</p>
+                        </div>
                     </div>
                     <div class="col-span-2 space-y-6">
                         <div class="bg-white/5 p-5 rounded-2xl border border-white/5">
@@ -449,14 +609,12 @@
                 </div>
             `;
             document.getElementById('student-detail-modal').classList.remove('hidden');
-            // Set the clear form action for this specific student
             document.getElementById('clear-student-form').action = '/clear_student/' + encodeURIComponent(regNum);
             lucide.createIcons();
         }
     </script>
 
     <script>
-        // Mobile sidebar toggle
         function toggleMobileSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebar-overlay');
@@ -464,7 +622,6 @@
             overlay.classList.toggle('active');
         }
 
-        // Close sidebar when a nav link is clicked (mobile)
         document.querySelectorAll('nav a').forEach(item => {
             item.addEventListener('click', () => {
                 if (window.innerWidth <= 768) {
