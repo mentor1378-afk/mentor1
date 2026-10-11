@@ -27,10 +27,15 @@ def add_highlight(run, color_hex):
     rPr.append(highlight)
 
 MENTOR_NAMES = {
-    'vijay@123': 'Vijayavaran',
+    'vijay@123': 'Vjayavaran',
+    'admin1@123': 'Vijayavaran',
     'mentor2@123': 'Mr. Mentor 2',
-    'Ashwin@123': 'Mr. V. Ashwin',
-    'admin@123': 'Administrator'
+    'admin2@123': 'Mr. Mentor 2'
+}
+
+ALIAS_MAP = {
+    'admin1@123': 'vijay@123',
+    'admin2@123': 'mentor2@123'
 }
 
 app = Flask(__name__)
@@ -135,22 +140,39 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 def seed_db():
+    # Remove obsolete faculty accounts if present
+    for old_user in ['Ashwin@123', 'admin@123', 'mentor1@123']:
+        user_to_del = User.query.get(old_user)
+        if user_to_del:
+            StudentDetail.query.filter_by(mentor_username=old_user).update({'mentor_username': 'vijay@123'})
+            db.session.delete(user_to_del)
+    db.session.flush()
+
+    # Remove test/demo students from live DB (cleanup after deployment)
+    for test_reg in ['24REG01', '192525257', 'Ibrahim@123']:
+        test_detail = StudentDetail.query.get(test_reg)
+        if test_detail:
+            db.session.delete(test_detail)
+        test_user = User.query.get(test_reg)
+        if test_user:
+            db.session.delete(test_user)
+    db.session.flush()
+
     # Faculty: vijay@123
     if not User.query.get('vijay@123'):
-        old_user = User.query.get('mentor1@123')
-        if old_user:
-            new_user = User(username='vijay@123', password_hash=old_user.password_hash, role='faculty')
-            db.session.add(new_user)
-            db.session.flush()
-            StudentDetail.query.filter_by(mentor_username='mentor1@123').update({'mentor_username': 'vijay@123'})
-            db.session.flush()
-            db.session.delete(old_user)
-        else:
-            db.session.add(User(
-                username='vijay@123',
-                password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
-                role='faculty'
-            ))
+        db.session.add(User(
+            username='vijay@123',
+            password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
+            role='faculty'
+        ))
+
+    # Alias: admin1@123 (uses same password as vijay@123)
+    if not User.query.get('admin1@123'):
+        db.session.add(User(
+            username='admin1@123',
+            password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
+            role='faculty'
+        ))
 
     # Faculty: mentor2@123
     if not User.query.get('mentor2@123'):
@@ -160,47 +182,15 @@ def seed_db():
             role='faculty'
         ))
 
-    # Faculty: Ashwin@123
-    if not User.query.get('Ashwin@123'):
+    # Alias: admin2@123 (uses same password as mentor2@123)
+    if not User.query.get('admin2@123'):
         db.session.add(User(
-            username='Ashwin@123',
+            username='admin2@123',
             password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
             role='faculty'
         ))
 
-    # Faculty: admin@123
-    if not User.query.get('admin@123'):
-        db.session.add(User(
-            username='admin@123',
-            password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
-            role='faculty'
-        ))
-
-    # Demo student: 24REG01
-    if not User.query.get('24REG01'):
-        db.session.add(User(
-            username='24REG01',
-            password_hash=bcrypt.generate_password_hash('student123').decode('utf-8'),
-            role='student'
-        ))
-        db.session.add(StudentDetail(
-            reg_num='24REG01',
-            name='Ibrahim',
-            course='CSA0708 - Computer Networks',
-            mentor_username='vijay@123',
-            slot_info=json.dumps(['Slot A', 'Slot B']),
-            attendance_data=json.dumps({'Slot A': 81, 'Slot B': 98}),
-            marks_data=json.dumps({'Slot A': {'model': '20', 'test1': '20', 'avg': '15'}}),
-            last_updated=datetime.now(pytz.timezone('Asia/Kolkata')).replace(tzinfo=None)
-        ))
-
-    # Demo student: Ibrahim@123
-    if not User.query.get('Ibrahim@123'):
-        db.session.add(User(
-            username='Ibrahim@123',
-            password_hash=bcrypt.generate_password_hash('welcome').decode('utf-8'),
-            role='student'
-        ))
+    # Demo students removed — no test students will be auto-created on deployment
 
     db.session.commit()
 
@@ -237,12 +227,15 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
+        username = request.form['username'].strip()
         password = request.form['password']
+        
         user = User.query.filter_by(username=username).first()
         
         if user and bcrypt.check_password_hash(user.password_hash, password):
-            session['user'] = user.username
+            canonical_user = ALIAS_MAP.get(username, username)
+            session['user'] = canonical_user
+            session['login_username'] = username
             session['role'] = user.role
             if user.role == 'faculty':
                 return redirect(url_for('faculty_dashboard'))
